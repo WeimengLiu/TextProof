@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     max_retries: int = 3
     retry_delay: float = 1.0
     
+    # Prompt配置
+    prompt_file: Optional[str] = None  # 自定义Prompt文件路径
+    
     def _parse_models(self, model_str: str) -> List[str]:
         """解析模型列表字符串"""
         if isinstance(model_str, str):

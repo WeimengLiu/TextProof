@@ -1,6 +1,7 @@
 """Prompt管理模块"""
 from typing import Optional
 import os
+import config
 
 
 class PromptManager:
@@ -33,11 +34,19 @@ class PromptManager:
         初始化Prompt管理器
         
         Args:
-            prompt_file: 自定义prompt文件路径（可选）
+            prompt_file: 自定义prompt文件路径（可选，优先使用环境变量配置）
         """
-        if prompt_file and os.path.exists(prompt_file):
-            with open(prompt_file, "r", encoding="utf-8") as f:
-                self.prompt = f.read()
+        # 优先使用环境变量配置的prompt文件
+        env_prompt_file = config.settings.prompt_file if hasattr(config.settings, 'prompt_file') else None
+        file_path = prompt_file or env_prompt_file
+        
+        if file_path and os.path.exists(file_path):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    self.prompt = f.read().strip()
+            except Exception as e:
+                print(f"警告: 无法读取Prompt文件 {file_path}: {e}，使用默认Prompt")
+                self.prompt = self.DEFAULT_PROMPT
         else:
             self.prompt = self.DEFAULT_PROMPT
     

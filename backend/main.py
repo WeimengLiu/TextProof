@@ -262,6 +262,38 @@ async def get_models(provider: Optional[str] = None):
         }
 
 
+@app.get("/api/prompt")
+async def get_prompt():
+    """获取当前使用的Prompt"""
+    from utils.prompt_manager import prompt_manager
+    return {
+        "prompt": prompt_manager.get_prompt(),
+        "is_custom": config.settings.prompt_file is not None,
+        "prompt_file": config.settings.prompt_file,
+    }
+
+
+@app.post("/api/prompt")
+async def update_prompt(request: Dict[str, Any]):
+    """
+    更新Prompt（仅运行时有效，重启后恢复）
+    
+    请求体:
+    - prompt: 新的Prompt文本
+    """
+    from utils.prompt_manager import prompt_manager
+    
+    if "prompt" not in request:
+        raise HTTPException(status_code=400, detail="缺少prompt字段")
+    
+    prompt_manager.set_prompt(request["prompt"])
+    
+    return {
+        "message": "Prompt已更新",
+        "prompt": prompt_manager.get_prompt(),
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
