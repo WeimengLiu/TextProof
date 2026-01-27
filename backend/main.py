@@ -304,7 +304,101 @@ async def get_config():
         "retry_delay": config.settings.retry_delay,
         "default_provider": config.settings.default_model_provider,
         "default_model": config.settings.default_model_name,
+        "openai_models": config.settings.openai_models,
+        "deepseek_models": config.settings.deepseek_models,
+        "ollama_models": config.settings.ollama_models,
     }
+
+
+@app.post("/api/config")
+async def update_config(request: Dict[str, Any]):
+    """
+    更新系统配置
+    
+    请求体:
+    - chunk_size: 文本分段大小（可选）
+    - chunk_overlap: 分段重叠大小（可选）
+    - max_retries: 最大重试次数（可选）
+    - retry_delay: 重试延迟（可选）
+    - default_provider: 默认模型提供商（可选）
+    - default_model: 默认模型名称（可选）
+    - openai_models: OpenAI模型列表（可选）
+    - deepseek_models: DeepSeek模型列表（可选）
+    - ollama_models: Ollama模型列表（可选）
+    - persist: 是否持久化到.env文件（默认false，仅运行时更新）
+    """
+    update_data = {}
+    
+    # 验证并准备更新数据
+    if "chunk_size" in request:
+        chunk_size = int(request["chunk_size"])
+        if chunk_size <= 0:
+            raise HTTPException(status_code=400, detail="chunk_size必须大于0")
+        update_data["chunk_size"] = chunk_size
+    
+    if "chunk_overlap" in request:
+        chunk_overlap = int(request["chunk_overlap"])
+        if chunk_overlap < 0:
+            raise HTTPException(status_code=400, detail="chunk_overlap不能小于0")
+        update_data["chunk_overlap"] = chunk_overlap
+    
+    if "max_retries" in request:
+        max_retries = int(request["max_retries"])
+        if max_retries < 0:
+            raise HTTPException(status_code=400, detail="max_retries不能小于0")
+        update_data["max_retries"] = max_retries
+    
+    if "retry_delay" in request:
+        retry_delay = float(request["retry_delay"])
+        if retry_delay < 0:
+            raise HTTPException(status_code=400, detail="retry_delay不能小于0")
+        update_data["retry_delay"] = retry_delay
+    
+    if "default_provider" in request:
+        update_data["default_model_provider"] = request["default_provider"]
+    
+    if "default_model" in request:
+        update_data["default_model_name"] = request["default_model"]
+    
+    if "openai_models" in request:
+        update_data["openai_models"] = request["openai_models"]
+    
+    if "deepseek_models" in request:
+        update_data["deepseek_models"] = request["deepseek_models"]
+    
+    if "ollama_models" in request:
+        update_data["ollama_models"] = request["ollama_models"]
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="没有提供要更新的配置项")
+    
+    # 更新配置
+    persist = request.get("persist", False)
+    
+    try:
+        if persist:
+            # 持久化到.env文件
+            config.settings.update_runtime_config(**update_data)
+            config.settings.save_to_env_file()
+            message = "配置已更新并保存到.env文件，重启服务后生效"
+        else:
+            # 仅运行时更新
+            config.settings.update_runtime_config(**update_data)
+            message = "配置已更新（运行时有效，重启后恢复）"
+        
+        return {
+            "message": message,
+            "config": {
+                "chunk_size": config.settings.chunk_size,
+                "chunk_overlap": config.settings.chunk_overlap,
+                "max_retries": config.settings.max_retries,
+                "retry_delay": config.settings.retry_delay,
+                "default_provider": config.settings.default_model_provider,
+                "default_model": config.settings.default_model_name,
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新配置失败: {str(e)}")
 
 
 if __name__ == "__main__":

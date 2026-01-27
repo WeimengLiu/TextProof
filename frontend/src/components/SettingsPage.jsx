@@ -16,6 +16,8 @@ import {
   Select,
   MenuItem,
   Chip,
+  FormControlLabel,
+  Switch,
 } from '@mui/material'
 import { Save as SaveIcon, Refresh as RefreshIcon } from '@mui/icons-material'
 import { correctionService } from '../services/api'
@@ -34,6 +36,9 @@ function SettingsPage() {
   const [allModels, setAllModels] = useState({})
   const [defaultProvider, setDefaultProvider] = useState('openai')
   const [defaultModel, setDefaultModel] = useState('')
+  const [openaiModels, setOpenaiModels] = useState('')
+  const [deepseekModels, setDeepseekModels] = useState('')
+  const [ollamaModels, setOllamaModels] = useState('')
 
   // 文本分段配置
   const [chunkSize, setChunkSize] = useState(2000)
@@ -42,6 +47,9 @@ function SettingsPage() {
   // 重试配置
   const [maxRetries, setMaxRetries] = useState(3)
   const [retryDelay, setRetryDelay] = useState(1.0)
+
+  // 持久化选项
+  const [persistConfig, setPersistConfig] = useState(false)
 
   useEffect(() => {
     loadSettings()
@@ -69,6 +77,11 @@ function SettingsPage() {
         if (configData.chunk_overlap) setChunkOverlap(configData.chunk_overlap)
         if (configData.max_retries) setMaxRetries(configData.max_retries)
         if (configData.retry_delay) setRetryDelay(configData.retry_delay)
+        if (configData.default_provider) setDefaultProvider(configData.default_provider)
+        if (configData.default_model) setDefaultModel(configData.default_model)
+        if (configData.openai_models) setOpenaiModels(configData.openai_models)
+        if (configData.deepseek_models) setDeepseekModels(configData.deepseek_models)
+        if (configData.ollama_models) setOllamaModels(configData.ollama_models)
       } catch (error) {
         console.warn('获取系统配置失败，使用默认值:', error)
       }
@@ -96,9 +109,31 @@ function SettingsPage() {
     setSaving(true)
     setMessage({ type: '', text: '' })
     try {
-      // 注意：需要后端API支持更新这些配置
-      // 目前只能更新Prompt
-      setMessage({ type: 'info', text: '其他配置项需要修改.env文件并重启服务' })
+      const updateData = {
+        chunk_size: chunkSize,
+        chunk_overlap: chunkOverlap,
+        max_retries: maxRetries,
+        retry_delay: retryDelay,
+        default_provider: defaultProvider,
+        default_model: defaultModel,
+        openai_models: openaiModels,
+        deepseek_models: deepseekModels,
+        ollama_models: ollamaModels,
+        persist: persistConfig,
+      }
+      
+      await correctionService.updateConfig(updateData)
+      setMessage({ 
+        type: persistConfig ? 'success' : 'info', 
+        text: persistConfig 
+          ? '配置已保存到.env文件，请重启服务使配置生效'
+          : '配置已更新（运行时有效，重启后恢复）'
+      })
+      
+      // 重新加载配置
+      setTimeout(() => {
+        loadSettings()
+      }, 1000)
     } catch (error) {
       setMessage({ type: 'error', text: `保存失败: ${error.message}` })
     } finally {
@@ -230,7 +265,11 @@ function SettingsPage() {
                     </Typography>
                     <FormControl fullWidth>
                       <InputLabel>提供商</InputLabel>
-                      <Select value={defaultProvider} label="提供商" disabled>
+                      <Select 
+                        value={defaultProvider} 
+                        label="提供商"
+                        onChange={(e) => setDefaultProvider(e.target.value)}
+                      >
                         {Object.keys(allModels).map((p) => (
                           <MenuItem key={p} value={p}>
                             {p}
@@ -238,9 +277,6 @@ function SettingsPage() {
                         ))}
                       </Select>
                     </FormControl>
-                    <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
-                      在.env文件中设置DEFAULT_MODEL_PROVIDER
-                    </Typography>
                   </Grid>
 
                   <Grid item xs={12} md={6}>
@@ -250,32 +286,64 @@ function SettingsPage() {
                     <TextField
                       fullWidth
                       value={defaultModel}
-                      disabled
-                      helperText="在.env文件中设置DEFAULT_MODEL_NAME"
+                      onChange={(e) => setDefaultModel(e.target.value)}
+                      placeholder="如: gpt-4-turbo-preview"
                     />
                   </Grid>
 
-                  {Object.entries(allModels).map(([provider, models]) => (
-                    <Grid item xs={12} key={provider}>
-                      <Divider sx={{ my: 2 }} />
-                      <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
-                        {provider.toUpperCase()} 模型列表
-                      </Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        {models.map((model) => (
-                          <Chip
-                            key={model}
-                            label={model}
-                            size="small"
-                            color={model === defaultModel && provider === defaultProvider ? 'primary' : 'default'}
-                          />
-                        ))}
-                      </Box>
-                      <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
-                        在.env文件中设置{provider.toUpperCase()}_MODELS（逗号分隔）
-                      </Typography>
-                    </Grid>
-                  ))}
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                      OpenAI 模型列表
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      value={openaiModels}
+                      onChange={(e) => setOpenaiModels(e.target.value)}
+                      placeholder="用逗号分隔，如: gpt-4-turbo-preview,gpt-4,gpt-3.5-turbo"
+                      helperText="用逗号分隔多个模型名称"
+                    />
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                      DeepSeek 模型列表
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      value={deepseekModels}
+                      onChange={(e) => setDeepseekModels(e.target.value)}
+                      placeholder="用逗号分隔，如: deepseek-chat,deepseek-coder"
+                      helperText="用逗号分隔多个模型名称"
+                    />
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                      Ollama 模型列表
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      value={ollamaModels}
+                      onChange={(e) => setOllamaModels(e.target.value)}
+                      placeholder="用逗号分隔，如: llama2,llama3,qwen"
+                      helperText="用逗号分隔多个模型名称"
+                    />
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      startIcon={<SaveIcon />}
+                      onClick={handleSaveConfig}
+                      disabled={saving}
+                      sx={{ mt: 2 }}
+                    >
+                      {saving ? '保存中...' : '保存模型配置'}
+                    </Button>
+                  </Grid>
                 </Grid>
               </Box>
             )}
@@ -293,8 +361,8 @@ function SettingsPage() {
                       type="number"
                       value={chunkSize}
                       onChange={(e) => setChunkSize(parseInt(e.target.value) || 2000)}
-                      disabled
-                      helperText="在.env文件中设置CHUNK_SIZE"
+                      inputProps={{ min: 100, max: 10000 }}
+                      helperText="建议范围: 1000-5000"
                     />
                   </Grid>
 
@@ -307,8 +375,8 @@ function SettingsPage() {
                       type="number"
                       value={chunkOverlap}
                       onChange={(e) => setChunkOverlap(parseInt(e.target.value) || 200)}
-                      disabled
-                      helperText="在.env文件中设置CHUNK_OVERLAP"
+                      inputProps={{ min: 0, max: chunkSize }}
+                      helperText={`建议范围: 0-${chunkSize}`}
                     />
                   </Grid>
 
@@ -321,8 +389,8 @@ function SettingsPage() {
                       type="number"
                       value={maxRetries}
                       onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
-                      disabled
-                      helperText="在.env文件中设置MAX_RETRIES"
+                      inputProps={{ min: 0, max: 10 }}
+                      helperText="建议范围: 1-5"
                     />
                   </Grid>
 
@@ -336,16 +404,41 @@ function SettingsPage() {
                       step="0.1"
                       value={retryDelay}
                       onChange={(e) => setRetryDelay(parseFloat(e.target.value) || 1.0)}
-                      disabled
-                      helperText="在.env文件中设置RETRY_DELAY"
+                      inputProps={{ min: 0.1, max: 10, step: 0.1 }}
+                      helperText="建议范围: 0.5-5.0"
                     />
                   </Grid>
-                </Grid>
 
-                <Alert severity="info" sx={{ mt: 3 }}>
-                  这些配置项需要修改.env文件并重启后端服务才能生效。
-                  当前显示的是默认值，实际值请查看.env文件。
-                </Alert>
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 2 }} />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={persistConfig}
+                          onChange={(e) => setPersistConfig(e.target.checked)}
+                        />
+                      }
+                      label="持久化到.env文件（重启后生效）"
+                    />
+                    <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
+                      {persistConfig 
+                        ? '配置将保存到.env文件，重启服务后生效'
+                        : '配置仅在运行时有效，重启后恢复为.env文件中的值'}
+                    </Typography>
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Button
+                      variant="contained"
+                      startIcon={<SaveIcon />}
+                      onClick={handleSaveConfig}
+                      disabled={saving}
+                      sx={{ mt: 2 }}
+                    >
+                      {saving ? '保存中...' : '保存处理配置'}
+                    </Button>
+                  </Grid>
+                </Grid>
               </Box>
             )}
           </>

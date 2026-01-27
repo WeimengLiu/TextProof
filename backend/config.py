@@ -62,6 +62,61 @@ class Settings(BaseSettings):
             "ollama": self._parse_models(self.ollama_models),
         }
     
+    def update_runtime_config(self, **kwargs):
+        """运行时更新配置（仅内存中，重启后恢复）"""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+    
+    def save_to_env_file(self, env_file_path: str = ".env"):
+        """保存配置到.env文件"""
+        import os
+        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), env_file_path)
+        
+        # 读取现有.env文件
+        env_lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                env_lines = f.readlines()
+        
+        # 创建配置映射
+        config_map = {
+            "CHUNK_SIZE": str(self.chunk_size),
+            "CHUNK_OVERLAP": str(self.chunk_overlap),
+            "MAX_RETRIES": str(self.max_retries),
+            "RETRY_DELAY": str(self.retry_delay),
+            "DEFAULT_MODEL_PROVIDER": self.default_model_provider,
+            "DEFAULT_MODEL_NAME": self.default_model_name,
+            "OPENAI_MODELS": self.openai_models,
+            "DEEPSEEK_MODELS": self.deepseek_models,
+            "OLLAMA_MODELS": self.ollama_models,
+        }
+        
+        # 更新或添加配置项
+        updated_keys = set()
+        new_lines = []
+        for line in env_lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                new_lines.append(line)
+                continue
+            
+            key = stripped.split("=")[0].strip()
+            if key in config_map:
+                new_lines.append(f"{key}={config_map[key]}\n")
+                updated_keys.add(key)
+            else:
+                new_lines.append(line)
+        
+        # 添加未存在的配置项
+        for key, value in config_map.items():
+            if key not in updated_keys:
+                new_lines.append(f"{key}={value}\n")
+        
+        # 写入文件
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+    
     model_config = ConfigDict(
         env_file=".env",
         case_sensitive=False,

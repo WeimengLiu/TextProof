@@ -180,4 +180,21 @@ export const correctionService = {
       return {}
     }
   },
+
+  /**
+   * 更新系统配置
+   * @param {object} config - 配置对象
+   */
+  async updateConfig(config) {
+    try {
+      const response = await api.post('/api/config', config)
+      return response.data
+    } catch (error) {
+      if (error.response) {
+        throw new Error(error.response.data.detail || '更新配置失败')
+      } else {
+        throw new Error(error.message || '更新配置失败')
+      }
+    }
+  },
 }
