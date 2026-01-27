@@ -250,7 +250,7 @@ function SettingsPage() {
                   {saving ? '保存中...' : '保存Prompt'}
                 </Button>
                 <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
-                  注意：此修改仅在运行时有效，重启服务后会恢复为配置文件中的Prompt
+                  ✅ Prompt已立即生效。注意：此修改仅在运行时有效，重启服务后会恢复为配置文件中的Prompt
                 </Typography>
               </Box>
             )}
@@ -418,12 +418,12 @@ function SettingsPage() {
                           onChange={(e) => setPersistConfig(e.target.checked)}
                         />
                       }
-                      label="持久化到.env文件（重启后生效）"
+                      label="持久化到.env文件"
                     />
                     <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
                       {persistConfig 
-                        ? '配置将保存到.env文件，重启服务后生效'
-                        : '配置仅在运行时有效，重启后恢复为.env文件中的值'}
+                        ? '✅ 配置立即生效，同时保存到.env文件（重启后也会生效）'
+                        : '✅ 配置立即生效，但重启后恢复为.env文件中的值'}
                     </Typography>
                   </Grid>
 

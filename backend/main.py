@@ -383,12 +383,12 @@ async def update_config(request: Dict[str, Any]):
             # 持久化到.env文件
             success = config.settings.save_to_env_file()
             if success:
-                message = "配置已更新并保存到.env文件，重启服务后生效"
+                message = "配置已更新并立即生效，同时已保存到.env文件（重启后也会生效）"
             else:
-                message = "配置已更新（运行时有效），但保存到.env文件失败，请检查文件权限"
+                message = "配置已更新并立即生效，但保存到.env文件失败，请检查文件权限"
         else:
             # 仅运行时更新
-            message = "配置已更新（运行时有效，重启后恢复为.env文件中的值）"
+            message = "配置已更新并立即生效（重启后恢复为.env文件中的值）"
         
         return {
             "message": message,
