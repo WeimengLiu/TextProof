@@ -35,13 +35,11 @@ class Settings(BaseSettings):
     max_retries: int = 3
     retry_delay: float = 1.0
     
-    @field_validator('openai_models', 'deepseek_models', 'ollama_models', mode='before')
-    @classmethod
-    def parse_models(cls, v):
+    def _parse_models(self, model_str: str) -> List[str]:
         """解析模型列表字符串"""
-        if isinstance(v, str):
-            return [m.strip() for m in v.split(',') if m.strip()]
-        return v
+        if isinstance(model_str, str):
+            return [m.strip() for m in model_str.split(',') if m.strip()]
+        return []
     
     def get_models_by_provider(self, provider: str) -> List[str]:
         """根据提供商获取模型列表"""
@@ -50,14 +48,15 @@ class Settings(BaseSettings):
             "deepseek": self.deepseek_models,
             "ollama": self.ollama_models,
         }
-        return model_map.get(provider, [])
+        model_str = model_map.get(provider, "")
+        return self._parse_models(model_str)
     
     def get_all_models(self) -> Dict[str, List[str]]:
         """获取所有提供商的模型列表"""
         return {
-            "openai": self.openai_models if isinstance(self.openai_models, list) else [],
-            "deepseek": self.deepseek_models if isinstance(self.deepseek_models, list) else [],
-            "ollama": self.ollama_models if isinstance(self.ollama_models, list) else [],
+            "openai": self._parse_models(self.openai_models),
+            "deepseek": self._parse_models(self.deepseek_models),
+            "ollama": self._parse_models(self.ollama_models),
         }
     
     model_config = ConfigDict(
