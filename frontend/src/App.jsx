@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { Container, AppBar, Toolbar, Typography, Box } from '@mui/material'
+import { Container, AppBar, Toolbar, Typography, Box, Chip } from '@mui/material'
+import { AutoFixHigh, CheckCircle } from '@mui/icons-material'
 import TextUpload from './components/TextUpload'
 import CorrectionProgress from './components/CorrectionProgress'
 import TextComparison from './components/TextComparison'
@@ -56,24 +57,92 @@ function App() {
           bgcolor: 'background.paper',
           borderBottom: '1px solid',
           borderColor: 'divider',
-          backdropFilter: 'blur(8px)',
-          backgroundColor: 'rgba(255, 255, 255, 0.9)',
-          color: 'text.primary', // 明确设置文字颜色
+          backdropFilter: 'blur(12px)',
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          color: 'text.primary',
+          zIndex: 1100,
         }}
       >
-        <Toolbar sx={{ maxWidth: '1400px', width: '100%', mx: 'auto', px: { xs: 2, sm: 3 } }}>
-          <Typography 
-            variant="h6" 
-            component="div" 
-            sx={{ 
+        <Toolbar 
+          sx={{ 
+            maxWidth: '1400px', 
+            width: '100%', 
+            mx: 'auto', 
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1, sm: 1.5 },
+            minHeight: { xs: '64px', sm: '72px' },
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
               flexGrow: 1,
-              fontWeight: 600,
-              letterSpacing: '-0.01em',
-              color: 'text.primary', // 明确设置文字颜色
             }}
           >
-            小说文本精校系统
-          </Typography>
+            {/* Logo/Icon */}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: { xs: 40, sm: 48 },
+                height: { xs: 40, sm: 48 },
+                borderRadius: 2,
+                bgcolor: 'primary.main',
+                color: 'white',
+                flexShrink: 0,
+              }}
+            >
+              <AutoFixHigh sx={{ fontSize: { xs: 24, sm: 28 } }} />
+            </Box>
+
+            {/* Title */}
+            <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+              <Typography 
+                variant="h6" 
+                component="div" 
+                sx={{ 
+                  fontWeight: 700,
+                  letterSpacing: '-0.02em',
+                  color: 'text.primary',
+                  fontSize: { xs: '1.1rem', sm: '1.25rem' },
+                  lineHeight: 1.2,
+                  mb: 0.25,
+                }}
+              >
+                小说文本精校系统
+              </Typography>
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: 'text.secondary',
+                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                  display: { xs: 'none', sm: 'block' },
+                }}
+              >
+                最小侵入式精校 · 专注纠错
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Status Badge */}
+          <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1 }}>
+            <Chip
+              icon={<CheckCircle sx={{ fontSize: 16 }} />}
+              label="AI 驱动"
+              size="small"
+              sx={{
+                bgcolor: 'success.light',
+                color: 'success.dark',
+                fontWeight: 500,
+                '& .MuiChip-icon': {
+                  color: 'success.dark',
+                },
+              }}
+            />
+          </Box>
         </Toolbar>
       </AppBar>
 
