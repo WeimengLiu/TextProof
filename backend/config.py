@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        protected_namespaces = ()  # 解决 model_name 字段冲突警告
 
 
 settings = Settings()
