@@ -1,7 +1,6 @@
 """Prompt管理模块"""
 from typing import Optional
 import os
-import config
 
 
 class PromptManager:
@@ -36,8 +35,13 @@ class PromptManager:
         Args:
             prompt_file: 自定义prompt文件路径（可选，优先使用环境变量配置）
         """
-        # 优先使用环境变量配置的prompt文件
-        env_prompt_file = config.settings.prompt_file if hasattr(config.settings, 'prompt_file') else None
+        # 延迟导入config避免循环导入
+        try:
+            import config as config_module
+            env_prompt_file = getattr(config_module.settings, 'prompt_file', None) if hasattr(config_module, 'settings') else None
+        except:
+            env_prompt_file = None
+        
         file_path = prompt_file or env_prompt_file
         
         if file_path and os.path.exists(file_path):
