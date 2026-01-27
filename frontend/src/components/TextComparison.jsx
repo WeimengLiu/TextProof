@@ -49,43 +49,53 @@ function TextComparison({ original, corrected, onExport }) {
     return (
       <Box
         sx={{
-          p: 2,
+          p: 2.5,
           bgcolor: 'background.paper',
-          borderRadius: 1,
+          borderRadius: 2,
           border: '1px solid',
           borderColor: 'divider',
           fontFamily: 'monospace',
-          fontSize: '14px',
+          fontSize: '0.9375rem',
           lineHeight: 1.8,
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
+          maxHeight: '600px',
+          overflow: 'auto',
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            bgcolor: 'action.hover',
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            bgcolor: 'text.disabled',
+            borderRadius: '4px',
+            '&:hover': {
+              bgcolor: 'text.secondary',
+            },
+          },
         }}
       >
         {segments.map((segment, index) => {
-          const bgColor =
-            segment.type === 'added'
-              ? 'success.light'
-              : segment.type === 'deleted'
-              ? 'error.light'
-              : 'transparent'
-          const textColor =
-            segment.type === 'added'
-              ? 'success.dark'
-              : segment.type === 'deleted'
-              ? 'error.dark'
-              : 'text.primary'
-
           return (
             <span
               key={index}
               style={{
                 backgroundColor: segment.type === 'added' 
-                  ? 'rgba(76, 175, 80, 0.2)' 
+                  ? 'rgba(16, 185, 129, 0.15)' 
                   : segment.type === 'deleted'
-                  ? 'rgba(244, 67, 54, 0.2)'
+                  ? 'rgba(239, 68, 68, 0.15)'
                   : 'transparent',
-                color: textColor,
+                color: segment.type === 'added' 
+                  ? '#059669'
+                  : segment.type === 'deleted'
+                  ? '#DC2626'
+                  : '#1E293B',
                 textDecoration: segment.type === 'deleted' ? 'line-through' : 'none',
+                padding: segment.type !== 'same' ? '2px 4px' : '0',
+                borderRadius: segment.type !== 'same' ? '3px' : '0',
+                transition: 'background-color 0.15s ease-out',
               }}
             >
               {segment.text}
@@ -97,53 +107,145 @@ function TextComparison({ original, corrected, onExport }) {
   }
 
   return (
-    <Paper sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6">校对结果</Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+    <Paper 
+      sx={{ 
+        p: { xs: 2.5, sm: 3.5 },
+        transition: 'all 0.2s ease-out',
+        '&:hover': {
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+        },
+      }}
+    >
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          mb: 3,
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 2, sm: 0 },
+        }}
+      >
+        <Typography 
+          variant="h6"
+          sx={{ 
+            fontWeight: 600,
+          }}
+        >
+          校对结果
+        </Typography>
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            gap: 1.5,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
           {hasChanges && (
-            <Chip label="有修改" color="primary" size="small" />
+            <Chip 
+              label="有修改" 
+              color="primary" 
+              size="small"
+              sx={{
+                fontWeight: 500,
+              }}
+            />
           )}
           {!hasChanges && (
-            <Chip label="无修改" color="default" size="small" />
+            <Chip 
+              label="无修改" 
+              color="default" 
+              size="small"
+              sx={{
+                fontWeight: 500,
+              }}
+            />
           )}
           <Button
             variant="contained"
+            color="secondary"
             startIcon={<DownloadIcon />}
             onClick={onExport}
             disabled={!corrected}
+            sx={{
+              fontWeight: 600,
+            }}
           >
             导出精校文本
           </Button>
         </Box>
       </Box>
 
-      <Box sx={{ mb: 2 }}>
-        <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)}>
-          <Tab label="对比视图" />
-          <Tab label="原文" />
-          <Tab label="精校文本" />
+      <Box sx={{ mb: 3 }}>
+        <Tabs 
+          value={tabValue} 
+          onChange={(e, v) => setTabValue(v)}
+          sx={{
+            '& .MuiTabs-indicator': {
+              bgcolor: 'primary.main',
+            },
+          }}
+        >
+          <Tab 
+            label="对比视图"
+            sx={{ 
+              fontWeight: tabValue === 0 ? 600 : 400,
+            }}
+          />
+          <Tab 
+            label="原文"
+            sx={{ 
+              fontWeight: tabValue === 1 ? 600 : 400,
+            }}
+          />
+          <Tab 
+            label="精校文本"
+            sx={{ 
+              fontWeight: tabValue === 2 ? 600 : 400,
+            }}
+          />
         </Tabs>
       </Box>
 
       {tabValue === 0 && (
-        <Grid container spacing={2}>
+        <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
-            <Typography variant="subtitle2" gutterBottom color="text.secondary">
+            <Typography 
+              variant="subtitle2" 
+              gutterBottom 
+              sx={{ 
+                color: 'text.secondary',
+                fontWeight: 600,
+                mb: 1.5,
+              }}
+            >
               原文
             </Typography>
             {loadingDiff ? (
-              <Typography>加载差异中...</Typography>
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography color="text.secondary">加载差异中...</Typography>
+              </Box>
             ) : (
               renderTextWithDiff(diffData?.original_segments, 'original')
             )}
           </Grid>
           <Grid item xs={12} md={6}>
-            <Typography variant="subtitle2" gutterBottom color="text.secondary">
+            <Typography 
+              variant="subtitle2" 
+              gutterBottom 
+              sx={{ 
+                color: 'text.secondary',
+                fontWeight: 600,
+                mb: 1.5,
+              }}
+            >
               精校文本
             </Typography>
             {loadingDiff ? (
-              <Typography>加载差异中...</Typography>
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography color="text.secondary">加载差异中...</Typography>
+              </Box>
             ) : (
               renderTextWithDiff(diffData?.corrected_segments, 'corrected')
             )}
@@ -154,18 +256,32 @@ function TextComparison({ original, corrected, onExport }) {
       {tabValue === 1 && (
         <Box
           sx={{
-            p: 2,
+            p: 2.5,
             bgcolor: 'background.paper',
-            borderRadius: 1,
+            borderRadius: 2,
             border: '1px solid',
             borderColor: 'divider',
             fontFamily: 'monospace',
-            fontSize: '14px',
+            fontSize: '0.9375rem',
             lineHeight: 1.8,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             maxHeight: '600px',
             overflow: 'auto',
+            '&::-webkit-scrollbar': {
+              width: '8px',
+            },
+            '&::-webkit-scrollbar-track': {
+              bgcolor: 'action.hover',
+              borderRadius: '4px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              bgcolor: 'text.disabled',
+              borderRadius: '4px',
+              '&:hover': {
+                bgcolor: 'text.secondary',
+              },
+            },
           }}
         >
           {original}
@@ -175,18 +291,32 @@ function TextComparison({ original, corrected, onExport }) {
       {tabValue === 2 && (
         <Box
           sx={{
-            p: 2,
+            p: 2.5,
             bgcolor: 'background.paper',
-            borderRadius: 1,
+            borderRadius: 2,
             border: '1px solid',
             borderColor: 'divider',
             fontFamily: 'monospace',
-            fontSize: '14px',
+            fontSize: '0.9375rem',
             lineHeight: 1.8,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             maxHeight: '600px',
             overflow: 'auto',
+            '&::-webkit-scrollbar': {
+              width: '8px',
+            },
+            '&::-webkit-scrollbar-track': {
+              bgcolor: 'action.hover',
+              borderRadius: '4px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              bgcolor: 'text.disabled',
+              borderRadius: '4px',
+              '&:hover': {
+                bgcolor: 'text.secondary',
+              },
+            },
           }}
         >
           {corrected}

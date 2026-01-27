@@ -49,15 +49,40 @@ function App() {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+      <AppBar 
+        position="sticky" 
+        elevation={0}
+        sx={{ 
+          bgcolor: 'background.paper',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          backdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        }}
+      >
+        <Toolbar sx={{ maxWidth: '1400px', width: '100%', mx: 'auto', px: { xs: 2, sm: 3 } }}>
+          <Typography 
+            variant="h6" 
+            component="div" 
+            sx={{ 
+              flexGrow: 1,
+              fontWeight: 600,
+              letterSpacing: '-0.01em',
+            }}
+          >
             小说文本精校系统
           </Typography>
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+      <Container 
+        maxWidth="lg" 
+        sx={{ 
+          mt: { xs: 3, sm: 4 },
+          mb: 4,
+          px: { xs: 2, sm: 3 },
+        }}
+      >
         <TextUpload onSubmit={handleTextSubmit} disabled={isProcessing} />
 
         {isProcessing && (
@@ -65,8 +90,23 @@ function App() {
         )}
 
         {error && (
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'error.light', color: 'error.contrastText', borderRadius: 1 }}>
-            {error}
+          <Box 
+            sx={{ 
+              mt: 2, 
+              p: 2.5, 
+              bgcolor: 'error.light', 
+              color: 'error.dark',
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'error.main',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              {error}
+            </Typography>
           </Box>
         )}
 

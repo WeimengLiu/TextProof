@@ -70,15 +70,49 @@ function TextUpload({ onSubmit, disabled }) {
   }
 
   return (
-    <Paper sx={{ p: 3, mb: 3 }}>
-      <Typography variant="h6" gutterBottom>
+    <Paper 
+      sx={{ 
+        p: { xs: 2.5, sm: 3.5 },
+        mb: 3,
+        transition: 'all 0.2s ease-out',
+        '&:hover': {
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+        },
+      }}
+    >
+      <Typography 
+        variant="h6" 
+        gutterBottom
+        sx={{ 
+          mb: 3,
+          fontWeight: 600,
+        }}
+      >
         输入文本
       </Typography>
 
-      <Box sx={{ mb: 2 }}>
-        <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)}>
-          <Tab label="粘贴文本" />
-          <Tab label="上传文件" />
+      <Box sx={{ mb: 3 }}>
+        <Tabs 
+          value={tabValue} 
+          onChange={(e, v) => setTabValue(v)}
+          sx={{
+            '& .MuiTabs-indicator': {
+              bgcolor: 'primary.main',
+            },
+          }}
+        >
+          <Tab 
+            label="粘贴文本" 
+            sx={{ 
+              fontWeight: tabValue === 0 ? 600 : 400,
+            }}
+          />
+          <Tab 
+            label="上传文件"
+            sx={{ 
+              fontWeight: tabValue === 1 ? 600 : 400,
+            }}
+          />
         </Tabs>
       </Box>
 
@@ -86,16 +120,22 @@ function TextUpload({ onSubmit, disabled }) {
         <TextField
           fullWidth
           multiline
-          rows={10}
+          rows={12}
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="请粘贴需要校对的文本..."
           variant="outlined"
           disabled={disabled}
-          sx={{ mb: 2 }}
+          sx={{ 
+            mb: 3,
+            '& .MuiOutlinedInput-root': {
+              fontFamily: 'monospace',
+              fontSize: '0.9375rem',
+            },
+          }}
         />
       ) : (
-        <Box sx={{ mb: 2 }}>
+        <Box sx={{ mb: 3 }}>
           <input
             accept=".txt"
             style={{ display: 'none' }}
@@ -110,32 +150,71 @@ function TextUpload({ onSubmit, disabled }) {
               component="span"
               startIcon={<UploadIcon />}
               disabled={disabled}
+              sx={{
+                mb: 2,
+                borderStyle: 'dashed',
+                borderWidth: 2,
+                '&:hover': {
+                  borderStyle: 'dashed',
+                  borderWidth: 2,
+                  bgcolor: 'primary.light',
+                  bgcolor: 'action.hover',
+                },
+              }}
             >
               选择TXT文件
             </Button>
           </label>
           {file && (
-            <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
-              已选择: {file.name}
-            </Typography>
+            <Box 
+              sx={{ 
+                mt: 2,
+                p: 1.5,
+                bgcolor: 'action.hover',
+                borderRadius: 1,
+                mb: 2,
+              }}
+            >
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                已选择: {file.name}
+              </Typography>
+            </Box>
           )}
           {text && (
             <TextField
               fullWidth
               multiline
-              rows={6}
+              rows={8}
               value={text}
               onChange={(e) => setText(e.target.value)}
               variant="outlined"
               disabled={disabled}
-              sx={{ mt: 2 }}
+              sx={{ 
+                mt: 2,
+                '& .MuiOutlinedInput-root': {
+                  fontFamily: 'monospace',
+                  fontSize: '0.9375rem',
+                },
+              }}
             />
           )}
         </Box>
       )}
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-        <FormControl sx={{ minWidth: 150 }} disabled={loadingProviders || disabled}>
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          gap: 2, 
+          mb: 3,
+          flexDirection: { xs: 'column', sm: 'row' },
+        }}
+      >
+        <FormControl 
+          sx={{ 
+            minWidth: { xs: '100%', sm: 180 },
+          }} 
+          disabled={loadingProviders || disabled}
+        >
           <InputLabel>模型提供商</InputLabel>
           <Select
             value={provider}
@@ -167,6 +246,11 @@ function TextUpload({ onSubmit, disabled }) {
         disabled={disabled || !text.trim()}
         fullWidth
         size="large"
+        sx={{
+          py: 1.5,
+          fontSize: '1rem',
+          fontWeight: 600,
+        }}
       >
         {disabled ? '校对中...' : '开始校对'}
       </Button>
