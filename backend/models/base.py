@@ -1,0 +1,66 @@
+"""模型适配器基类"""
+from abc import ABC, abstractmethod
+from typing import List, Dict, Any
+import asyncio
+
+
+class BaseModelAdapter(ABC):
+    """模型适配器基类"""
+    
+    def __init__(self, config: Dict[str, Any]):
+        self.config = config
+    
+    @abstractmethod
+    async def correct_text(self, text: str, prompt: str) -> str:
+        """
+        校对文本
+        
+        Args:
+            text: 待校对的文本
+            prompt: 校对提示词
+            
+        Returns:
+            校对后的文本
+        """
+        pass
+    
+    @abstractmethod
+    async def health_check(self) -> bool:
+        """检查模型服务是否可用"""
+        pass
+    
+    async def correct_text_with_retry(
+        self, 
+        text: str, 
+        prompt: str, 
+        max_retries: int = 3,
+        retry_delay: float = 1.0
+    ) -> str:
+        """
+        带重试的文本校对
+        
+        Args:
+            text: 待校对的文本
+            prompt: 校对提示词
+            max_retries: 最大重试次数
+            retry_delay: 重试延迟（秒）
+            
+        Returns:
+            校对后的文本
+            
+        Raises:
+            Exception: 所有重试失败后抛出异常
+        """
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                return await self.correct_text(text, prompt)
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay * (attempt + 1))
+                else:
+                    raise last_error
+        
+        raise last_error
