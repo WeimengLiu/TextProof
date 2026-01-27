@@ -31,7 +31,7 @@ function SettingsPage() {
   // Prompt配置
   const [prompt, setPrompt] = useState('')
   const [promptFile, setPromptFile] = useState('')
-  const [persistPrompt, setPersistPrompt] = useState(false)
+  const [persistPrompt, setPersistPrompt] = useState(true)
 
   // 模型配置
   const [allModels, setAllModels] = useState({})
@@ -50,7 +50,7 @@ function SettingsPage() {
   const [retryDelay, setRetryDelay] = useState(1.0)
 
   // 持久化选项
-  const [persistConfig, setPersistConfig] = useState(false)
+  const [persistConfig, setPersistConfig] = useState(true)
 
   useEffect(() => {
     loadSettings()
