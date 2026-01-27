@@ -227,17 +227,6 @@ function SettingsPage() {
             {tabValue === 0 && (
               <Box>
                 <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
-                  Prompt文件路径
-                </Typography>
-                <TextField
-                  fullWidth
-                  value={promptFile || '使用默认Prompt'}
-                  disabled
-                  sx={{ mb: 3 }}
-                  helperText="如需修改，请在.env文件中设置PROMPT_FILE"
-                />
-
-                <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
                   Prompt内容
                 </Typography>
                 <TextField
