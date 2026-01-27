@@ -294,6 +294,19 @@ async def update_prompt(request: Dict[str, Any]):
     }
 
 
+@app.get("/api/config")
+async def get_config():
+    """获取系统配置信息"""
+    return {
+        "chunk_size": config.settings.chunk_size,
+        "chunk_overlap": config.settings.chunk_overlap,
+        "max_retries": config.settings.max_retries,
+        "retry_delay": config.settings.retry_delay,
+        "default_provider": config.settings.default_model_provider,
+        "default_model": config.settings.default_model_name,
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

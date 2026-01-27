@@ -1,12 +1,14 @@
 import React, { useState } from 'react'
-import { Container, AppBar, Toolbar, Typography, Box, Chip } from '@mui/material'
+import { Container, AppBar, Toolbar, Typography, Box, Chip, Tabs, Tab } from '@mui/material'
 import { AutoFixHigh, CheckCircle } from '@mui/icons-material'
 import TextUpload from './components/TextUpload'
 import CorrectionProgress from './components/CorrectionProgress'
 import TextComparison from './components/TextComparison'
+import SettingsPage from './components/SettingsPage'
 import { correctionService } from './services/api'
 
 function App() {
+  const [mainTab, setMainTab] = useState(0)
   const [originalText, setOriginalText] = useState('')
   const [correctedText, setCorrectedText] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -154,40 +156,77 @@ function App() {
           px: { xs: 2, sm: 3 },
         }}
       >
-        <TextUpload onSubmit={handleTextSubmit} disabled={isProcessing} />
-
-        {isProcessing && (
-          <CorrectionProgress current={progress.current} total={progress.total} />
-        )}
-
-        {error && (
-          <Box 
-            sx={{ 
-              mt: 2, 
-              p: 2.5, 
-              bgcolor: 'error.light', 
-              color: 'error.dark',
-              borderRadius: 2,
-              border: '1px solid',
-              borderColor: 'error.main',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
+        {/* 主Tab切换 */}
+        <Box sx={{ mb: 3 }}>
+          <Tabs
+            value={mainTab}
+            onChange={(e, v) => setMainTab(v)}
+            sx={{
+              mb: 3,
+              '& .MuiTabs-indicator': {
+                bgcolor: 'primary.main',
+              },
             }}
           >
-            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              {error}
-            </Typography>
-          </Box>
+            <Tab
+              label="文本校对"
+              sx={{
+                fontWeight: mainTab === 0 ? 600 : 400,
+                fontSize: '1rem',
+              }}
+            />
+            <Tab
+              label="系统配置"
+              sx={{
+                fontWeight: mainTab === 1 ? 600 : 400,
+                fontSize: '1rem',
+              }}
+            />
+          </Tabs>
+        </Box>
+
+        {/* 文本校对页面 */}
+        {mainTab === 0 && (
+          <>
+            <TextUpload onSubmit={handleTextSubmit} disabled={isProcessing} />
+
+            {isProcessing && (
+              <CorrectionProgress current={progress.current} total={progress.total} />
+            )}
+
+            {error && (
+              <Box 
+                sx={{ 
+                  mt: 2, 
+                  p: 2.5, 
+                  bgcolor: 'error.light', 
+                  color: 'error.dark',
+                  borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: 'error.main',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {error}
+                </Typography>
+              </Box>
+            )}
+
+            {correctedText && (
+              <TextComparison
+                original={originalText}
+                corrected={correctedText}
+                onExport={handleExport}
+              />
+            )}
+          </>
         )}
 
-        {correctedText && (
-          <TextComparison
-            original={originalText}
-            corrected={correctedText}
-            onExport={handleExport}
-          />
-        )}
+        {/* 系统配置页面 */}
+        {mainTab === 1 && <SettingsPage />}
       </Container>
     </Box>
   )

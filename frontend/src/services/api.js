@@ -137,4 +137,34 @@ export const correctionService = {
         : { models: {}, default_provider: 'openai', default_model: null }
     }
   },
+
+  /**
+   * 获取当前使用的Prompt
+   */
+  async getPrompt() {
+    try {
+      const response = await api.get('/api/prompt')
+      return response.data
+    } catch (error) {
+      console.error('获取Prompt失败:', error)
+      return { prompt: '', is_custom: false, prompt_file: null }
+    }
+  },
+
+  /**
+   * 更新Prompt
+   * @param {string} prompt - 新的Prompt文本
+   */
+  async updatePrompt(prompt) {
+    try {
+      const response = await api.post('/api/prompt', { prompt })
+      return response.data
+    } catch (error) {
+      if (error.response) {
+        throw new Error(error.response.data.detail || '更新Prompt失败')
+      } else {
+        throw new Error(error.message || '更新Prompt失败')
+      }
+    }
+  },
 }
