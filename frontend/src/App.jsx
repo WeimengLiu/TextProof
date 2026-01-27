@@ -58,6 +58,7 @@ function App() {
           borderColor: 'divider',
           backdropFilter: 'blur(8px)',
           backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          color: 'text.primary', // 明确设置文字颜色
         }}
       >
         <Toolbar sx={{ maxWidth: '1400px', width: '100%', mx: 'auto', px: { xs: 2, sm: 3 } }}>
@@ -68,6 +69,7 @@ function App() {
               flexGrow: 1,
               fontWeight: 600,
               letterSpacing: '-0.01em',
+              color: 'text.primary', // 明确设置文字颜色
             }}
           >
             小说文本精校系统

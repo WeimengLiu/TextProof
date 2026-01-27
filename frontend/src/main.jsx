@@ -160,6 +160,14 @@ const theme = createTheme({
         },
       },
     },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          // 确保AppBar文字颜色正确
+          color: 'inherit',
+        },
+      },
+    },
   },
 })
 
