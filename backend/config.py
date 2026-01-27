@@ -71,7 +71,9 @@ class Settings(BaseSettings):
     def save_to_env_file(self, env_file_path: str = ".env"):
         """保存配置到.env文件"""
         import os
-        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), env_file_path)
+        # 获取backend目录路径
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        env_path = os.path.join(backend_dir, env_file_path)
         
         # 读取现有.env文件
         env_lines = []
