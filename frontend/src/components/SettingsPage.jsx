@@ -62,8 +62,16 @@ function SettingsPage() {
       setDefaultProvider(modelsData.default_provider || 'openai')
       setDefaultModel(modelsData.default_model || '')
 
-      // 注意：chunk_size, chunk_overlap, max_retries, retry_delay 需要后端API支持
-      // 暂时使用默认值
+      // 加载系统配置
+      try {
+        const configData = await correctionService.getConfig()
+        if (configData.chunk_size) setChunkSize(configData.chunk_size)
+        if (configData.chunk_overlap) setChunkOverlap(configData.chunk_overlap)
+        if (configData.max_retries) setMaxRetries(configData.max_retries)
+        if (configData.retry_delay) setRetryDelay(configData.retry_delay)
+      } catch (error) {
+        console.warn('获取系统配置失败，使用默认值:', error)
+      }
     } catch (error) {
       setMessage({ type: 'error', text: `加载配置失败: ${error.message}` })
     } finally {

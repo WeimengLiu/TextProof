@@ -167,4 +167,17 @@ export const correctionService = {
       }
     }
   },
+
+  /**
+   * 获取系统配置
+   */
+  async getConfig() {
+    try {
+      const response = await api.get('/api/config')
+      return response.data
+    } catch (error) {
+      console.error('获取系统配置失败:', error)
+      return {}
+    }
+  },
 }
