@@ -1,6 +1,6 @@
 """配置管理模块"""
 from pydantic_settings import BaseSettings
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict
 from typing import Optional, Dict, List
 
 
