@@ -122,12 +122,12 @@ function SettingsPage() {
         persist: persistConfig,
       }
       
-      await correctionService.updateConfig(updateData)
+      const result = await correctionService.updateConfig(updateData)
       setMessage({ 
-        type: persistConfig ? 'success' : 'info', 
-        text: persistConfig 
+        type: persistConfig ? (result.persisted ? 'success' : 'warning') : 'info', 
+        text: result.message || (persistConfig 
           ? '配置已保存到.env文件，请重启服务使配置生效'
-          : '配置已更新（运行时有效，重启后恢复）'
+          : '配置已更新（运行时有效，重启后恢复）')
       })
       
       // 重新加载配置

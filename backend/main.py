@@ -376,18 +376,23 @@ async def update_config(request: Dict[str, Any]):
     persist = request.get("persist", False)
     
     try:
+        # 先更新运行时配置
+        config.settings.update_runtime_config(**update_data)
+        
         if persist:
             # 持久化到.env文件
-            config.settings.update_runtime_config(**update_data)
-            config.settings.save_to_env_file()
-            message = "配置已更新并保存到.env文件，重启服务后生效"
+            success = config.settings.save_to_env_file()
+            if success:
+                message = "配置已更新并保存到.env文件，重启服务后生效"
+            else:
+                message = "配置已更新（运行时有效），但保存到.env文件失败，请检查文件权限"
         else:
             # 仅运行时更新
-            config.settings.update_runtime_config(**update_data)
-            message = "配置已更新（运行时有效，重启后恢复）"
+            message = "配置已更新（运行时有效，重启后恢复为.env文件中的值）"
         
         return {
             "message": message,
+            "persisted": persist,
             "config": {
                 "chunk_size": config.settings.chunk_size,
                 "chunk_overlap": config.settings.chunk_overlap,

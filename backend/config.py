@@ -80,6 +80,12 @@ class Settings(BaseSettings):
         if os.path.exists(env_path):
             with open(env_path, "r", encoding="utf-8") as f:
                 env_lines = f.readlines()
+        else:
+            # 如果文件不存在，从.env.example复制
+            example_path = os.path.join(backend_dir, ".env.example")
+            if os.path.exists(example_path):
+                with open(example_path, "r", encoding="utf-8") as f:
+                    env_lines = f.readlines()
         
         # 创建配置映射
         config_map = {
@@ -97,27 +103,53 @@ class Settings(BaseSettings):
         # 更新或添加配置项
         updated_keys = set()
         new_lines = []
+        in_config_section = False
+        
         for line in env_lines:
             stripped = line.strip()
+            
+            # 保留注释和空行
             if not stripped or stripped.startswith("#"):
                 new_lines.append(line)
+                # 检查是否进入配置区域
+                if "配置" in stripped or "Config" in stripped:
+                    in_config_section = True
                 continue
             
-            key = stripped.split("=")[0].strip()
-            if key in config_map:
-                new_lines.append(f"{key}={config_map[key]}\n")
-                updated_keys.add(key)
-            else:
-                new_lines.append(line)
+            # 解析配置行
+            if "=" in stripped:
+                key = stripped.split("=")[0].strip()
+                if key in config_map:
+                    # 更新配置值，保留原有格式（如果有引号等）
+                    original_line = line.rstrip()
+                    if "=" in original_line:
+                        # 保留等号前的部分和格式
+                        prefix = original_line.split("=")[0]
+                        new_lines.append(f"{prefix}={config_map[key]}\n")
+                    else:
+                        new_lines.append(f"{key}={config_map[key]}\n")
+                    updated_keys.add(key)
+                    continue
+            
+            # 保留其他行
+            new_lines.append(line)
         
-        # 添加未存在的配置项
-        for key, value in config_map.items():
-            if key not in updated_keys:
-                new_lines.append(f"{key}={value}\n")
+        # 添加未存在的配置项（在适当位置）
+        missing_keys = set(config_map.keys()) - updated_keys
+        if missing_keys:
+            # 在文件末尾添加新配置项
+            new_lines.append("\n# 自动添加的配置项\n")
+            for key in sorted(missing_keys):
+                new_lines.append(f"{key}={config_map[key]}\n")
         
         # 写入文件
-        with open(env_path, "w", encoding="utf-8") as f:
-            f.writelines(new_lines)
+        try:
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.writelines(new_lines)
+            return True
+        except Exception as e:
+            print(f"保存.env文件失败: {e}")
+            return False
     
     model_config = ConfigDict(
         env_file=".env",
