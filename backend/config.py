@@ -1,5 +1,6 @@
 """配置管理模块"""
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from typing import Optional
 
 
@@ -29,10 +30,11 @@ class Settings(BaseSettings):
     max_retries: int = 3
     retry_delay: float = 1.0
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
-        protected_namespaces = ()  # 解决 model_name 字段冲突警告
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        protected_namespaces=()  # 解决 model_name 字段冲突警告
+    )
 
 
 settings = Settings()
