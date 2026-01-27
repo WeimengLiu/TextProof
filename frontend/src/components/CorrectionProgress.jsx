@@ -9,7 +9,6 @@ function CorrectionProgress({ current, total }) {
       sx={{ 
         p: { xs: 2.5, sm: 3 },
         mb: 3,
-        bgcolor: 'primary.light',
         bgcolor: 'rgba(37, 99, 235, 0.05)',
         border: '1px solid',
         borderColor: 'primary.light',

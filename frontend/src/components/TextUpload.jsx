@@ -157,7 +157,6 @@ function TextUpload({ onSubmit, disabled }) {
                 '&:hover': {
                   borderStyle: 'dashed',
                   borderWidth: 2,
-                  bgcolor: 'primary.light',
                   bgcolor: 'action.hover',
                 },
               }}
