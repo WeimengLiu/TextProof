@@ -120,4 +120,21 @@ export const correctionService = {
       return { providers: [], default: 'openai' }
     }
   },
+
+  /**
+   * 获取可用的模型列表
+   * @param {string} provider - 模型提供商（可选）
+   */
+  async getModels(provider = null) {
+    try {
+      const params = provider ? { provider } : {}
+      const response = await api.get('/api/models', { params })
+      return response.data
+    } catch (error) {
+      console.error('获取模型列表失败:', error)
+      return provider 
+        ? { provider, models: [], default: null }
+        : { models: {}, default_provider: 'openai', default_model: null }
+    }
+  },
 }

@@ -1,7 +1,7 @@
 """配置管理模块"""
 from pydantic_settings import BaseSettings
-from pydantic import ConfigDict
-from typing import Optional
+from pydantic import ConfigDict, field_validator
+from typing import Optional, Dict, List
 
 
 class Settings(BaseSettings):
@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     default_model_provider: str = "openai"
     default_model_name: str = "gpt-4-turbo-preview"
     
+    # 模型列表配置（用逗号分隔）
+    openai_models: str = "gpt-4-turbo-preview,gpt-4,gpt-3.5-turbo,gpt-4o-mini"
+    deepseek_models: str = "deepseek-chat,deepseek-coder"
+    ollama_models: str = "llama2,llama3,qwen,mistral"
+    
     # 文本分段配置
     chunk_size: int = 2000
     chunk_overlap: int = 200
@@ -29,6 +34,31 @@ class Settings(BaseSettings):
     # 重试配置
     max_retries: int = 3
     retry_delay: float = 1.0
+    
+    @field_validator('openai_models', 'deepseek_models', 'ollama_models', mode='before')
+    @classmethod
+    def parse_models(cls, v):
+        """解析模型列表字符串"""
+        if isinstance(v, str):
+            return [m.strip() for m in v.split(',') if m.strip()]
+        return v
+    
+    def get_models_by_provider(self, provider: str) -> List[str]:
+        """根据提供商获取模型列表"""
+        model_map = {
+            "openai": self.openai_models,
+            "deepseek": self.deepseek_models,
+            "ollama": self.ollama_models,
+        }
+        return model_map.get(provider, [])
+    
+    def get_all_models(self) -> Dict[str, List[str]]:
+        """获取所有提供商的模型列表"""
+        return {
+            "openai": self.openai_models if isinstance(self.openai_models, list) else [],
+            "deepseek": self.deepseek_models if isinstance(self.deepseek_models, list) else [],
+            "ollama": self.ollama_models if isinstance(self.ollama_models, list) else [],
+        }
     
     model_config = ConfigDict(
         env_file=".env",

@@ -22,23 +22,62 @@ function TextUpload({ onSubmit, disabled }) {
   const [provider, setProvider] = useState('openai')
   const [modelName, setModelName] = useState('')
   const [providers, setProviders] = useState([])
+  const [models, setModels] = useState([])
   const [loadingProviders, setLoadingProviders] = useState(false)
+  const [loadingModels, setLoadingModels] = useState(false)
 
   React.useEffect(() => {
     loadProviders()
   }, [])
+
+  React.useEffect(() => {
+    // 当提供商改变时，加载对应的模型列表
+    if (provider) {
+      loadModels(provider)
+    }
+  }, [provider])
 
   const loadProviders = async () => {
     setLoadingProviders(true)
     try {
       const data = await correctionService.getProviders()
       setProviders(data.providers || [])
-      setProvider(data.default || 'openai')
+      const defaultProvider = data.default || 'openai'
+      setProvider(defaultProvider)
     } catch (error) {
       console.error('加载提供商失败:', error)
     } finally {
       setLoadingProviders(false)
     }
+  }
+
+  const loadModels = async (providerName) => {
+    setLoadingModels(true)
+    try {
+      const data = await correctionService.getModels(providerName)
+      const modelList = data.models || []
+      setModels(modelList)
+      // 如果有默认模型，设置为默认值
+      if (data.default && modelList.includes(data.default)) {
+        setModelName(data.default)
+      } else if (modelList.length > 0) {
+        // 否则选择第一个模型
+        setModelName(modelList[0])
+      } else {
+        setModelName('')
+      }
+    } catch (error) {
+      console.error('加载模型列表失败:', error)
+      setModels([])
+      setModelName('')
+    } finally {
+      setLoadingModels(false)
+    }
+  }
+
+  const handleProviderChange = (newProvider) => {
+    setProvider(newProvider)
+    setModelName('') // 重置模型名称，等待加载新列表
   }
 
   const handleFileChange = (event) => {
@@ -218,7 +257,7 @@ function TextUpload({ onSubmit, disabled }) {
           <Select
             value={provider}
             label="模型提供商"
-            onChange={(e) => setProvider(e.target.value)}
+            onChange={(e) => handleProviderChange(e.target.value)}
           >
             {providers.map((p) => (
               <MenuItem key={p} value={p}>
@@ -228,14 +267,26 @@ function TextUpload({ onSubmit, disabled }) {
           </Select>
         </FormControl>
 
-        <TextField
-          label="模型名称（可选）"
-          value={modelName}
-          onChange={(e) => setModelName(e.target.value)}
-          placeholder="如: gpt-4-turbo-preview"
-          disabled={disabled}
-          sx={{ flexGrow: 1 }}
-        />
+        <FormControl 
+          sx={{ 
+            flexGrow: 1,
+            minWidth: { xs: '100%', sm: 200 },
+          }} 
+          disabled={loadingModels || disabled || models.length === 0}
+        >
+          <InputLabel>模型名称</InputLabel>
+          <Select
+            value={modelName}
+            label="模型名称"
+            onChange={(e) => setModelName(e.target.value)}
+          >
+            {models.map((model) => (
+              <MenuItem key={model} value={model}>
+                {model}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
       </Box>
 
       <Button

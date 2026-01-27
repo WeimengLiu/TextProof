@@ -238,6 +238,30 @@ async def get_providers():
     }
 
 
+@app.get("/api/models")
+async def get_models(provider: Optional[str] = None):
+    """
+    获取可用的模型列表
+    
+    参数:
+    - provider: 模型提供商（可选），如果不提供则返回所有提供商的模型
+    """
+    if provider:
+        models = config.settings.get_models_by_provider(provider)
+        return {
+            "provider": provider,
+            "models": models,
+            "default": config.settings.default_model_name if provider == config.settings.default_model_provider else None
+        }
+    else:
+        all_models = config.settings.get_all_models()
+        return {
+            "models": all_models,
+            "default_provider": config.settings.default_model_provider,
+            "default_model": config.settings.default_model_name
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
