@@ -276,21 +276,88 @@ async def get_prompt():
 @app.post("/api/prompt")
 async def update_prompt(request: Dict[str, Any]):
     """
-    更新Prompt（仅运行时有效，重启后恢复）
+    更新Prompt
     
     请求体:
     - prompt: 新的Prompt文本
+    - persist: 是否持久化保存（默认false）
     """
     from utils.prompt_manager import prompt_manager
+    import os
     
     if "prompt" not in request:
         raise HTTPException(status_code=400, detail="缺少prompt字段")
     
-    prompt_manager.set_prompt(request["prompt"])
+    prompt_text = request["prompt"]
+    persist = request.get("persist", False)
+    
+    # 更新Prompt
+    prompt_manager.set_prompt(prompt_text)
+    
+    message = "Prompt已更新并立即生效"
+    prompt_file_path = None
+    
+    if persist:
+        try:
+            # 保存到默认文件
+            saved_path = prompt_manager.save_prompt_to_default_file()
+            prompt_file_path = saved_path
+            
+            # 更新.env文件中的PROMPT_FILE配置
+            backend_dir = os.path.dirname(os.path.abspath(__file__))
+            env_path = os.path.join(backend_dir, ".env")
+            
+            if os.path.exists(env_path):
+                # 读取现有.env文件
+                with open(env_path, "r", encoding="utf-8") as f:
+                    env_lines = f.readlines()
+                
+                # 更新或添加PROMPT_FILE配置
+                new_lines = []
+                prompt_file_updated = False
+                relative_path = "./prompts/custom_prompt.txt"
+                
+                for line in env_lines:
+                    stripped = line.strip()
+                    if stripped.startswith("PROMPT_FILE="):
+                        new_lines.append(f"PROMPT_FILE={relative_path}\n")
+                        prompt_file_updated = True
+                    else:
+                        new_lines.append(line)
+                
+                # 如果没有找到PROMPT_FILE，添加到Prompt配置区域
+                if not prompt_file_updated:
+                    # 查找Prompt配置区域或文件末尾
+                    added = False
+                    for i, line in enumerate(new_lines):
+                        if "# Prompt配置" in line or "# Prompt" in line:
+                            # 在Prompt配置区域添加
+                            j = i + 1
+                            while j < len(new_lines) and new_lines[j].strip().startswith("#"):
+                                j += 1
+                            new_lines.insert(j, f"PROMPT_FILE={relative_path}\n")
+                            added = True
+                            break
+                    
+                    if not added:
+                        # 添加到文件末尾
+                        new_lines.append(f"\n# Prompt配置\nPROMPT_FILE={relative_path}\n")
+                
+                # 写入文件
+                with open(env_path, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
+            
+            message = f"Prompt已更新并立即生效，已保存到文件并更新.env配置（重启后也会生效）"
+        except Exception as e:
+            message = f"Prompt已更新并立即生效，但保存文件失败: {str(e)}"
+    else:
+        message = "Prompt已更新并立即生效（重启后恢复为配置文件中的Prompt）"
     
     return {
-        "message": "Prompt已更新",
+        "message": message,
         "prompt": prompt_manager.get_prompt(),
+        "persisted": persist,
+        "prompt_file": prompt_file_path,
     }
 
 

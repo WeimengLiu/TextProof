@@ -31,6 +31,7 @@ function SettingsPage() {
   // Prompt配置
   const [prompt, setPrompt] = useState('')
   const [promptFile, setPromptFile] = useState('')
+  const [persistPrompt, setPersistPrompt] = useState(false)
 
   // 模型配置
   const [allModels, setAllModels] = useState({})
@@ -96,8 +97,21 @@ function SettingsPage() {
     setSaving(true)
     setMessage({ type: '', text: '' })
     try {
-      await correctionService.updatePrompt(prompt)
-      setMessage({ type: 'success', text: 'Prompt已保存（运行时有效，重启后恢复为配置文件中的Prompt）' })
+      const result = await correctionService.updatePrompt(prompt, persistPrompt)
+      setMessage({ 
+        type: persistPrompt ? (result.persisted ? 'success' : 'warning') : 'info',
+        text: result.message || 'Prompt已保存'
+      })
+      
+      // 如果持久化成功，更新prompt_file显示
+      if (persistPrompt && result.prompt_file) {
+        setPromptFile(result.prompt_file)
+      }
+      
+      // 重新加载配置
+      setTimeout(() => {
+        loadSettings()
+      }, 1000)
     } catch (error) {
       setMessage({ type: 'error', text: `保存失败: ${error.message}` })
     } finally {
@@ -241,6 +255,24 @@ function SettingsPage() {
                     },
                   }}
                 />
+                
+                <Box sx={{ mb: 2 }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={persistPrompt}
+                        onChange={(e) => setPersistPrompt(e.target.checked)}
+                      />
+                    }
+                    label="持久化保存Prompt"
+                  />
+                  <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
+                    {persistPrompt 
+                      ? '✅ Prompt将保存到文件并更新.env配置（重启后也会生效）'
+                      : '✅ Prompt立即生效，但重启后恢复为配置文件中的Prompt'}
+                  </Typography>
+                </Box>
+                
                 <Button
                   variant="contained"
                   startIcon={<SaveIcon />}
@@ -249,9 +281,6 @@ function SettingsPage() {
                 >
                   {saving ? '保存中...' : '保存Prompt'}
                 </Button>
-                <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
-                  ✅ Prompt已立即生效。注意：此修改仅在运行时有效，重启服务后会恢复为配置文件中的Prompt
-                </Typography>
               </Box>
             )}
 

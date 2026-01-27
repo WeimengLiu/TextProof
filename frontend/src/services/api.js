@@ -154,10 +154,11 @@ export const correctionService = {
   /**
    * 更新Prompt
    * @param {string} prompt - 新的Prompt文本
+   * @param {boolean} persist - 是否持久化保存
    */
-  async updatePrompt(prompt) {
+  async updatePrompt(prompt, persist = false) {
     try {
-      const response = await api.post('/api/prompt', { prompt })
+      const response = await api.post('/api/prompt', { prompt, persist })
       return response.data
     } catch (error) {
       if (error.response) {

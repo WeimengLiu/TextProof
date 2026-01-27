@@ -66,6 +66,28 @@ class PromptManager:
         """保存prompt到文件"""
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(self.prompt)
+    
+    def save_prompt_to_default_file(self) -> str:
+        """
+        保存Prompt到默认文件（prompts/custom_prompt.txt）
+        
+        Returns:
+            保存的文件路径
+        """
+        import os
+        # 获取backend目录路径
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        prompts_dir = os.path.join(backend_dir, "backend", "prompts")
+        
+        # 确保prompts目录存在
+        os.makedirs(prompts_dir, exist_ok=True)
+        
+        # 保存到默认文件
+        default_file = os.path.join(prompts_dir, "custom_prompt.txt")
+        with open(default_file, "w", encoding="utf-8") as f:
+            f.write(self.prompt)
+        
+        return default_file
 
 
 # 全局prompt管理器实例
