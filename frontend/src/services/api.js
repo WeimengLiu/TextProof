@@ -51,6 +51,7 @@ export const correctionService = {
     const params = new URLSearchParams()
     if (options.provider) params.append('provider', options.provider)
     if (options.model_name) params.append('model_name', options.model_name)
+    if (options.async_task !== undefined) params.append('async_task', options.async_task)
 
     try {
       const response = await api.post(`/api/correct/file?${params.toString()}`, formData, {
@@ -140,10 +141,13 @@ export const correctionService = {
 
   /**
    * 获取当前使用的Prompt
+   * @param {boolean} reload - 是否重新从文件加载（默认false）
    */
-  async getPrompt() {
+  async getPrompt(reload = false) {
     try {
-      const response = await api.get('/api/prompt')
+      const response = await api.get('/api/prompt', {
+        params: { reload: reload }
+      })
       return response.data
     } catch (error) {
       console.error('获取Prompt失败:', error)
@@ -195,6 +199,140 @@ export const correctionService = {
         throw new Error(error.response.data.detail || '更新配置失败')
       } else {
         throw new Error(error.message || '更新配置失败')
+      }
+    }
+  },
+
+  /**
+   * 获取所有任务列表
+   */
+  async getTasks() {
+    try {
+      const response = await api.get('/api/tasks')
+      return response.data
+    } catch (error) {
+      if (error.response) {
+        throw new Error(error.response.data.detail || '获取任务列表失败')
+      } else {
+        throw new Error(error.message || '获取任务列表失败')
+      }
+    }
+  },
+
+  /**
+   * 获取任务详情
+   * @param {string} taskId - 任务ID
+   */
+  async getTask(taskId) {
+    try {
+      const response = await api.get(`/api/tasks/${taskId}`)
+      return response.data
+    } catch (error) {
+      if (error.response) {
+        throw new Error(error.response.data.detail || '获取任务详情失败')
+      } else {
+        throw new Error(error.message || '获取任务详情失败')
+      }
+    }
+  },
+
+  /**
+   * 获取所有比对结果列表
+   * 支持分页：{ limit, offset }
+   */
+  async getResults(options = {}) {
+    try {
+      const params = {}
+      if (options.limit !== undefined) params.limit = options.limit
+      if (options.offset !== undefined) params.offset = options.offset
+      const response = await api.get('/api/results', { params })
+      return response.data
+    } catch (error) {
+      if (error.response) {
+        throw new Error(error.response.data.detail || '获取结果列表失败')
+      } else {
+        throw new Error(error.message || '获取结果列表失败')
+      }
+    }
+  },
+
+  /**
+   * 获取比对结果详情
+   * @param {string} resultId - 结果ID
+   * @param {object} options - { include_text?: boolean }
+   */
+  async getResult(resultId, options = {}) {
+    try {
+      const includeText = options.include_text !== undefined ? options.include_text : false
+      const response = await api.get(`/api/results/${resultId}`, {
+        params: { include_text: includeText },
+      })
+      return response.data
+    } catch (error) {
+      if (error.response) {
+        throw new Error(error.response.data.detail || '获取结果详情失败')
+      } else {
+        throw new Error(error.message || '获取结果详情失败')
+      }
+    }
+  },
+
+  /**
+   * 生成下载URL（后端应提供流式下载接口）
+   * @param {string} resultId - 结果ID
+   */
+  getResultDownloadUrl(resultId) {
+    return `${API_BASE_URL}/api/results/${encodeURIComponent(resultId)}/download`
+  },
+
+  /**
+   * 删除比对结果
+   * @param {string} resultId - 结果ID
+   */
+  async deleteResult(resultId) {
+    try {
+      const response = await api.delete(`/api/results/${resultId}`)
+      return response.data
+    } catch (error) {
+      if (error.response) {
+        throw new Error(error.response.data.detail || '删除结果失败')
+      } else {
+        throw new Error(error.message || '删除结果失败')
+      }
+    }
+  },
+
+  /**
+   * 获取指定章节的比对结果
+   * @param {string} resultId - 结果ID
+   * @param {number} chapterIndex - 章节索引
+   */
+  async getChapterResult(resultId, chapterIndex) {
+    try {
+      const response = await api.get(`/api/results/${resultId}/chapters/${chapterIndex}`)
+      return response.data
+    } catch (error) {
+      if (error.response) {
+        throw new Error(error.response.data.detail || '获取章节结果失败')
+      } else {
+        throw new Error(error.message || '获取章节结果失败')
+      }
+    }
+  },
+
+  /**
+   * 保存“输入框直接校对”的结果到结果列表
+   * @param {object} payload - { original, corrected, filename?, provider?, model_name? }
+   */
+  async saveManualResult(payload) {
+    try {
+      const response = await api.post('/api/results/manual', payload)
+      return response.data
+    } catch (error) {
+      if (error.response) {
+        throw new Error(error.response.data.detail || '保存结果失败')
+      } else {
+        throw new Error(error.message || '保存结果失败')
       }
     }
   },

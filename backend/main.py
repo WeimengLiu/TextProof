@@ -1,19 +1,34 @@
 """FastAPI主应用"""
 import sys
 import os
+import logging
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 # 添加backend目录到路径
 backend_dir = os.path.dirname(os.path.abspath(__file__))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+import datetime as dt
+from fastapi.responses import StreamingResponse
+import io
 from services.correction_service import CorrectionService
-from utils.diff_utils import highlight_diff
+from services.task_manager import task_manager
+from utils.diff_utils import highlight_diff, has_meaningful_changes
 import config
+import asyncio
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="小说文本精校系统", version="1.0.0")
 
@@ -49,12 +64,22 @@ class CorrectionResponse(BaseModel):
     chunks_processed: int
     total_chunks: int
     has_changes: bool
+    failed_chunks: Optional[int] = 0
+    has_failures: Optional[bool] = False
+    failure_details: Optional[List[Dict[str, Any]]] = None
 
 
 class DiffResponse(BaseModel):
     original_segments: list
     corrected_segments: list
     has_changes: bool
+
+class ManualResultRequest(BaseModel):
+    original: str
+    corrected: str
+    filename: Optional[str] = None
+    provider: Optional[str] = None
+    model_name: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
@@ -126,6 +151,11 @@ async def correct_text(request: CorrectionRequest):
     - chunk_size: 分段大小（可选）
     - chunk_overlap: 分段重叠大小（可选）
     """
+    logger.info(f"[API] /api/correct called")
+    logger.info(f"[API] Provider: {request.provider}, Model: {request.model_name}")
+    logger.info(f"[API] Text length: {len(request.text)} characters")
+    logger.info(f"[API] Chunk size: {request.chunk_size}, Overlap: {request.chunk_overlap}")
+    
     try:
         service = get_service(
             provider=request.provider,
@@ -141,32 +171,139 @@ async def correct_text(request: CorrectionRequest):
                 chunk_overlap=request.chunk_overlap
             )
         
+        logger.info(f"[API] Starting text correction...")
         result = await service.correct_text(request.text)
+        logger.info(f"[API] Text correction completed")
+        logger.info(f"[API] Chunks processed: {result.get('chunks_processed')}/{result.get('total_chunks')}")
+        logger.info(f"[API] Failed chunks: {result.get('failed_chunks', 0)}")
         
-        # 检查是否有变化
-        has_changes = result["original"] != result["corrected"]
+        # 检查是否有变化（忽略纯格式差异）
+        has_changes = has_meaningful_changes(result["original"], result["corrected"])
         
         return CorrectionResponse(
             original=result["original"],
             corrected=result["corrected"],
             chunks_processed=result["chunks_processed"],
             total_chunks=result["total_chunks"],
-            has_changes=has_changes
+            has_changes=has_changes,
+            failed_chunks=result.get("failed_chunks", 0),
+            has_failures=result.get("has_failures", False),
+            failure_details=result.get("failure_details")
         )
     except Exception as e:
+        logger.error(f"[API] Correction failed: {str(e)}")
+        logger.exception(e)
         raise HTTPException(status_code=500, detail=f"校对失败: {str(e)}")
+
+
+async def process_task_async(task_id: str, text: str, provider: Optional[str], model_name: Optional[str], use_chapters: bool = False):
+    """异步处理任务"""
+    try:
+        service = get_service(provider, model_name)
+        task = task_manager.get_task(task_id)
+        
+        if not task:
+            return
+        
+        if use_chapters:
+            # 按章节处理
+            from utils.chapter_splitter import ChapterSplitter
+            chapter_splitter = ChapterSplitter()
+            chapters = chapter_splitter.split_by_chapters(text)
+            
+            # 更新任务信息
+            task_manager.tasks[task_id]["total_chapters"] = len(chapters)
+            
+            corrected_chapters = []
+            total_chunks = 0
+            processed_chunks = 0
+            
+            for chapter in chapters:
+                chapter_index = chapter["chapter_index"]
+                chapter_title = chapter["chapter_title"]
+                chapter_content = chapter["chapter_content"]
+                
+                # 更新章节状态为处理中
+                task_manager.update_chapter_status(task_id, chapter_index, "processing", chapter_title)
+                
+                # 处理章节
+                def chapter_progress_callback(current: int, total: int):
+                    task_manager.update_task_progress(
+                        task_id,
+                        processed_chunks + current,
+                        total_chunks,
+                        chapter_index,
+                        chapter_title
+                    )
+                
+                chapter_result = await service.correct_text(chapter_content, progress_callback=chapter_progress_callback)
+                
+                # 检查章节是否有失败
+                has_failures = chapter_result.get("has_failures", False)
+                failed_chunks = chapter_result.get("failed_chunks", 0)
+                
+                # 更新章节状态
+                if has_failures and failed_chunks == chapter_result.get("total_chunks", 0):
+                    # 所有片段都失败
+                    task_manager.update_chapter_status(task_id, chapter_index, "failed", chapter_title)
+                else:
+                    # 完成（可能有部分失败）
+                    task_manager.update_chapter_status(task_id, chapter_index, "completed", chapter_title)
+                
+                corrected_chapters.append({
+                    "chapter_index": chapter_index,
+                    "chapter_title": chapter_title,
+                    "original": chapter_result["original"],
+                    "corrected": chapter_result["corrected"],
+                    "has_changes": has_meaningful_changes(chapter_result["original"], chapter_result["corrected"]),
+                    "chunks_processed": chapter_result["chunks_processed"],
+                    "total_chunks": chapter_result["total_chunks"],
+                    "failed_chunks": failed_chunks,
+                    "has_failures": has_failures,
+                })
+                
+                processed_chunks += chapter_result["total_chunks"]
+                total_chunks += chapter_result["total_chunks"]
+            
+            # 合并所有章节（包含章节标题）
+            original_text = "\n\n".join([
+                f"{ch['chapter_title']}\n\n{ch['original']}" 
+                for ch in corrected_chapters
+            ])
+            corrected_text = "\n\n".join([
+                f"{ch['chapter_title']}\n\n{ch['corrected']}" 
+                for ch in corrected_chapters
+            ])
+            has_changes = any(ch["has_changes"] for ch in corrected_chapters)
+            
+            task_manager.complete_task(task_id, original_text, corrected_text, has_changes, corrected_chapters)
+        else:
+            # 普通处理
+            def progress_callback(current: int, total: int):
+                task_manager.update_task_progress(task_id, current, total)
+            
+            result = await service.correct_text(text, progress_callback=progress_callback)
+            
+            has_changes = has_meaningful_changes(result["original"], result["corrected"])
+            task_manager.complete_task(task_id, result["original"], result["corrected"], has_changes)
+    except Exception as e:
+        task_manager.fail_task(task_id, str(e))
 
 
 @app.post("/api/correct/file")
 async def correct_file(
     file: UploadFile = File(...),
-    provider: Optional[str] = None,
-    model_name: Optional[str] = None
+    provider: Optional[str] = Query(None),
+    model_name: Optional[str] = Query(None),
+    async_task: bool = Query(False)  # 从查询参数获取
 ):
     """
     上传文件进行校对
     
     支持的文件格式：TXT
+    
+    参数:
+    - async_task: 是否以后台任务方式处理（默认false，同步处理）
     """
     if not file.filename.endswith('.txt'):
         raise HTTPException(status_code=400, detail="仅支持TXT文件")
@@ -175,19 +312,54 @@ async def correct_file(
         # 读取文件内容
         content = await file.read()
         text = content.decode('utf-8')
+        file_size = len(content)
         
-        service = get_service(provider, model_name)
-        result = await service.correct_text(text)
-        
-        has_changes = result["original"] != result["corrected"]
-        
-        return CorrectionResponse(
-            original=result["original"],
-            corrected=result["corrected"],
-            chunks_processed=result["chunks_processed"],
-            total_chunks=result["total_chunks"],
-            has_changes=has_changes
-        )
+        # 如果启用后台任务
+        if async_task:
+            # 检测是否应该按章节处理（自动检测）
+            from utils.chapter_splitter import ChapterSplitter
+            chapter_splitter = ChapterSplitter()
+            chapter_info = chapter_splitter.detect_chapters(text)
+            use_chapters = chapter_info["has_chapters"] and chapter_info["chapter_count"] > 1
+            
+            # 创建任务
+            task_id = task_manager.create_task(
+                filename=file.filename,
+                file_size=file_size,
+                provider=provider,
+                model_name=model_name,
+                use_chapters=use_chapters
+            )
+            
+            # 启动后台任务
+            asyncio.create_task(process_task_async(task_id, text, provider, model_name, use_chapters))
+            
+            response = {
+                "task_id": task_id,
+                "message": "任务已创建，正在后台处理",
+                "async": True
+            }
+            
+            if use_chapters:
+                response["use_chapters"] = True
+                response["chapter_count"] = chapter_info["chapter_count"]
+                response["message"] = f"任务已创建，检测到{chapter_info['chapter_count']}个章节，正在按章节处理"
+            
+            return response
+        else:
+            # 同步处理
+            service = get_service(provider, model_name)
+            result = await service.correct_text(text)
+            
+            has_changes = has_meaningful_changes(result["original"], result["corrected"])
+            
+            return CorrectionResponse(
+                original=result["original"],
+                corrected=result["corrected"],
+                chunks_processed=result["chunks_processed"],
+                total_chunks=result["total_chunks"],
+                has_changes=has_changes
+            )
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="文件编码错误，请使用UTF-8编码")
     except Exception as e:
@@ -263,11 +435,16 @@ async def get_models(provider: Optional[str] = None):
 
 
 @app.get("/api/prompt")
-async def get_prompt():
-    """获取当前使用的Prompt"""
+async def get_prompt(reload: bool = Query(False)):
+    """
+    获取当前使用的Prompt
+    
+    参数:
+    - reload: 是否重新从文件加载（默认false，使用缓存）
+    """
     from utils.prompt_manager import prompt_manager
     return {
-        "prompt": prompt_manager.get_prompt(),
+        "prompt": prompt_manager.get_prompt(reload=reload),
         "is_custom": config.settings.prompt_file is not None,
         "prompt_file": config.settings.prompt_file,
     }
@@ -367,6 +544,9 @@ async def get_config():
     return {
         "chunk_size": config.settings.chunk_size,
         "chunk_overlap": config.settings.chunk_overlap,
+        "ollama_chunk_size": config.settings.ollama_chunk_size,
+        "ollama_chunk_overlap": config.settings.ollama_chunk_overlap,
+        "fast_provider_max_chars": getattr(config.settings, "fast_provider_max_chars", 10000),
         "max_retries": config.settings.max_retries,
         "retry_delay": config.settings.retry_delay,
         "default_provider": config.settings.default_model_provider,
@@ -385,6 +565,9 @@ async def update_config(request: Dict[str, Any]):
     请求体:
     - chunk_size: 文本分段大小（可选）
     - chunk_overlap: 分段重叠大小（可选）
+    - ollama_chunk_size: Ollama专用分段大小（可选，针对本地大模型）
+    - ollama_chunk_overlap: Ollama专用分段重叠大小（可选）
+    - fast_provider_max_chars: 云端大模型整段直发阈值（字符数，可选）
     - max_retries: 最大重试次数（可选）
     - retry_delay: 重试延迟（可选）
     - default_provider: 默认模型提供商（可选）
@@ -408,6 +591,24 @@ async def update_config(request: Dict[str, Any]):
         if chunk_overlap < 0:
             raise HTTPException(status_code=400, detail="chunk_overlap不能小于0")
         update_data["chunk_overlap"] = chunk_overlap
+    
+    if "ollama_chunk_size" in request:
+        ollama_chunk_size = int(request["ollama_chunk_size"])
+        if ollama_chunk_size <= 0:
+            raise HTTPException(status_code=400, detail="ollama_chunk_size必须大于0")
+        update_data["ollama_chunk_size"] = ollama_chunk_size
+    
+    if "ollama_chunk_overlap" in request:
+        ollama_chunk_overlap = int(request["ollama_chunk_overlap"])
+        if ollama_chunk_overlap < 0:
+            raise HTTPException(status_code=400, detail="ollama_chunk_overlap不能小于0")
+        update_data["ollama_chunk_overlap"] = ollama_chunk_overlap
+    
+    if "fast_provider_max_chars" in request:
+        fast_provider_max_chars = int(request["fast_provider_max_chars"])
+        if fast_provider_max_chars <= 0:
+            raise HTTPException(status_code=400, detail="fast_provider_max_chars必须大于0")
+        update_data["fast_provider_max_chars"] = fast_provider_max_chars
     
     if "max_retries" in request:
         max_retries = int(request["max_retries"])
@@ -445,6 +646,11 @@ async def update_config(request: Dict[str, Any]):
     try:
         # 先更新运行时配置
         config.settings.update_runtime_config(**update_data)
+
+        # 配置更新后，清空已缓存的服务实例，确保下次调用使用最新配置
+        # 尤其是依赖 chunk_size / ollama_chunk_size 等在 __init__ 中初始化的对象
+        global _services
+        _services.clear()
         
         if persist:
             # 持久化到.env文件
@@ -463,6 +669,9 @@ async def update_config(request: Dict[str, Any]):
             "config": {
                 "chunk_size": config.settings.chunk_size,
                 "chunk_overlap": config.settings.chunk_overlap,
+                "ollama_chunk_size": config.settings.ollama_chunk_size,
+                "ollama_chunk_overlap": config.settings.ollama_chunk_overlap,
+                "fast_provider_max_chars": getattr(config.settings, "fast_provider_max_chars", 10000),
                 "max_retries": config.settings.max_retries,
                 "retry_delay": config.settings.retry_delay,
                 "default_provider": config.settings.default_model_provider,
@@ -473,6 +682,219 @@ async def update_config(request: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=f"更新配置失败: {str(e)}")
 
 
+@app.get("/api/tasks")
+async def get_tasks():
+    """获取所有任务列表"""
+    tasks = task_manager.get_all_tasks()
+    return {"tasks": tasks}
+
+
+@app.get("/api/tasks/{task_id}")
+async def get_task(task_id: str):
+    """获取任务详情"""
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return task
+
+
+@app.get("/api/results")
+async def get_results():
+    """获取所有比对结果列表"""
+    # Pagination (production)
+    # Keep response shape compatible: still returns {"results": [...]}
+    # Extra: {"total","limit","offset"}
+    try:
+        # default: first page
+        page = task_manager.store.list_results(limit=50, offset=0)
+        return {"results": page.items, "total": page.total, "limit": page.limit, "offset": page.offset}
+    except Exception:
+        # fallback (should not happen)
+        results = task_manager.get_all_results()
+        return {"results": results}
+
+
+@app.get("/api/results/{result_id}")
+async def get_result(result_id: str, include_text: bool = Query(True)):
+    """获取比对结果详情"""
+    # Production default: include_text=True for backward compatibility with current frontend.
+    # For very large results, client can set include_text=false then use download endpoint.
+    result = task_manager.store.get_result(result_id=result_id, include_text=include_text, include_chapter_meta=True)
+    if not result:
+        raise HTTPException(status_code=404, detail="结果不存在")
+    
+    # 如果结果很大，简化返回（前端可以单独请求章节）
+    if result.get("use_chapters") and result.get("chapters"):
+        # 返回章节列表，不返回完整文本
+        simplified_result = {
+            "result_id": result["result_id"],
+            "task_id": result.get("task_id"),
+            "filename": result["filename"],
+            "has_changes": result["has_changes"],
+            "use_chapters": True,
+            "chapter_count": len(result["chapters"]),
+            "chapters": [
+                {
+                    "chapter_index": ch["chapter_index"],
+                    "chapter_title": ch["chapter_title"],
+                    "has_changes": ch.get("has_changes", False),
+                    "original_length": len(ch["original"]),
+                    "corrected_length": len(ch["corrected"]),
+                }
+                for ch in result["chapters"]
+            ],
+            "created_at": result["created_at"],
+            "completed_at": result.get("completed_at"),
+        }
+        return simplified_result
+    
+    return result
+
+
+@app.get("/api/results/{result_id}/chapters/{chapter_index}")
+async def get_chapter_result(result_id: str, chapter_index: int):
+    """获取指定章节的比对结果"""
+    meta = task_manager.store.get_result(result_id=result_id, include_text=False, include_chapter_meta=False)
+    if not meta:
+        raise HTTPException(status_code=404, detail="结果不存在")
+    if not meta.get("use_chapters"):
+        raise HTTPException(status_code=400, detail="该结果不是按章节处理的")
+    chapter = task_manager.store.get_chapter(result_id=result_id, chapter_index=chapter_index)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    return chapter
+
+
+@app.delete("/api/results/{result_id}")
+async def delete_result(result_id: str):
+    """删除比对结果"""
+    success = task_manager.store.delete_result(result_id=result_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="结果不存在")
+    return {"message": "结果已删除", "result_id": result_id}
+
+
+@app.post("/api/results/manual")
+async def save_manual_result(request: ManualResultRequest):
+    """保存“输入框直接校对”的比对结果到结果列表"""
+    if not request.original or not request.corrected:
+        raise HTTPException(status_code=400, detail="original 和 corrected 不能为空")
+
+    filename = request.filename or f"输入框校对结果_{dt.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    has_changes = has_meaningful_changes(request.original, request.corrected)
+
+    result_id = task_manager.save_manual_result(
+        filename=filename,
+        original=request.original,
+        corrected=request.corrected,
+        has_changes=has_changes,
+        provider=request.provider,
+        model_name=request.model_name,
+    )
+    return {"message": "结果已保存", "result_id": result_id}
+
+
+@app.get("/api/results/{result_id}/download")
+async def download_result(
+    result_id: str,
+    which: str = Query("corrected"),
+    chapter_index: Optional[int] = Query(None),
+):
+    """
+    下载结果文本（流式输出，生产友好）
+    - which: original | corrected
+    - chapter_index: 章节索引（仅章节结果）
+    """
+    if which not in ("original", "corrected"):
+        raise HTTPException(status_code=400, detail="which 必须是 original 或 corrected")
+
+    meta = task_manager.store.get_result(result_id=result_id, include_text=False, include_chapter_meta=False)
+    if not meta:
+        raise HTTPException(status_code=404, detail="结果不存在")
+
+    filename_base = meta.get("filename") or result_id
+
+    if meta.get("use_chapters"):
+        if chapter_index is None:
+            raise HTTPException(status_code=400, detail="该结果按章节处理，请提供 chapter_index")
+        chapter = task_manager.store.get_chapter(result_id=result_id, chapter_index=int(chapter_index))
+        if not chapter:
+            raise HTTPException(status_code=404, detail="章节不存在")
+        text = chapter.get(which) or ""
+        chapter_title = chapter.get("chapter_title") or f"chapter_{chapter_index}"
+        download_name = f"{filename_base}_{chapter_title}_{which}.txt"
+    else:
+        full = task_manager.store.get_result(result_id=result_id, include_text=True, include_chapter_meta=False)
+        text = (full or {}).get(which) or ""
+        download_name = f"{filename_base}_{which}.txt"
+
+    data = text.encode("utf-8")
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename=\"{download_name}\"'},
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="启动文本精校系统后端服务")
+    parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="开发模式：启用热重载（代码修改后自动重启）"
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="监听地址（默认: 0.0.0.0）"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="监听端口（默认: 8000）"
+    )
+    parser.add_argument(
+        "--reload-dir",
+        type=str,
+        default=None,
+        help="监听重载的目录（默认: 当前目录）"
+    )
+    
+    args = parser.parse_args()
+    
+    reload_dirs = [os.path.dirname(os.path.abspath(__file__))]
+    if args.reload_dir:
+        reload_dirs.append(args.reload_dir)
+    
+    if args.dev:
+        logger.info("=" * 60)
+        logger.info("🚀 启动开发模式（热重载已启用）")
+        logger.info(f"📍 地址: http://{args.host}:{args.port}")
+        logger.info(f"📁 监听目录: {', '.join(reload_dirs)}")
+        logger.info("💡 代码修改后会自动重启服务")
+        logger.info("=" * 60)
+        uvicorn.run(
+            "main:app",
+            host=args.host,
+            port=args.port,
+            reload=args.dev,
+            reload_dirs=reload_dirs if args.dev else None,
+            log_level="info"
+        )
+    else:
+        logger.info("=" * 60)
+        logger.info("🚀 启动生产模式")
+        logger.info(f"📍 地址: http://{args.host}:{args.port}")
+        logger.info("💡 使用 --dev 参数启用开发模式（热重载）")
+        logger.info("=" * 60)
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            log_level="info"
+        )

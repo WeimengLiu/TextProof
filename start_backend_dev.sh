@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 启动后端服务脚本
+# 启动后端服务脚本（开发模式 - 热重载）
 
 cd "$(dirname "$0")/backend"
 
@@ -26,13 +26,7 @@ if [ ! -f ".env" ]; then
     fi
 fi
 
-# 检查是否传入 --dev 参数
-if [ "$1" == "--dev" ] || [ "$1" == "-d" ]; then
-    echo "启动后端服务（开发模式 - 热重载）..."
-    echo "代码修改后会自动重启服务"
-    python main.py --dev
-else
-    echo "启动后端服务（生产模式）..."
-    echo "提示: 使用 --dev 参数启用开发模式（热重载）"
-    python main.py
-fi
+# 启动服务（开发模式）
+echo "启动后端服务（开发模式 - 热重载）..."
+echo "代码修改后会自动重启服务"
+python main.py --dev

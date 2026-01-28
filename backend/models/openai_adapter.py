@@ -2,7 +2,11 @@
 from typing import Dict, Any
 from openai import AsyncOpenAI
 from models.base import BaseModelAdapter
+from models.exceptions import ConnectionError as ModelConnectionError, ServiceUnavailableError
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIAdapter(BaseModelAdapter):
@@ -38,7 +42,19 @@ class OpenAIAdapter(BaseModelAdapter):
             result = response.choices[0].message.content.strip()
             return result
         except Exception as e:
-            raise Exception(f"OpenAI API调用失败: {str(e)}")
+            error_msg = str(e)
+            error_lower = error_msg.lower()
+            
+            # 检查是否是连接错误
+            if any(keyword in error_lower for keyword in ['connection', 'connect', 'network', 'dns', 'timeout', 'unreachable']):
+                logger.error(f"[OpenAI] Connection error detected: {error_msg}")
+                raise ModelConnectionError(f"OpenAI API连接失败: {error_msg}")
+            # 检查是否是服务不可用错误
+            elif any(keyword in error_lower for keyword in ['503', '502', '504', 'service unavailable', 'bad gateway']):
+                logger.error(f"[OpenAI] Service unavailable: {error_msg}")
+                raise ServiceUnavailableError(f"OpenAI API服务不可用: {error_msg}")
+            else:
+                raise Exception(f"OpenAI API调用失败: {error_msg}")
     
     async def health_check(self) -> bool:
         """检查OpenAI服务是否可用"""

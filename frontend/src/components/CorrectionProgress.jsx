@@ -6,12 +6,16 @@ function CorrectionProgress({ current, total }) {
 
   return (
     <Paper 
+      elevation={0}
       sx={{ 
-        p: { xs: 2.5, sm: 3 },
+        p: { xs: 3, sm: 3.5 },
         mb: 3,
-        bgcolor: 'rgba(37, 99, 235, 0.05)',
+        bgcolor: (theme) => theme.palette.mode === 'light' 
+          ? 'rgba(0, 167, 111, 0.04)' 
+          : 'rgba(0, 167, 111, 0.12)',
         border: '1px solid',
         borderColor: 'primary.light',
+        borderRadius: 2,
       }}
     >
       <Typography 
@@ -32,7 +36,9 @@ function CorrectionProgress({ current, total }) {
             sx={{
               height: 8,
               borderRadius: 4,
-              bgcolor: 'rgba(37, 99, 235, 0.1)',
+              bgcolor: (theme) => theme.palette.mode === 'light'
+                ? 'rgba(0, 167, 111, 0.12)'
+                : 'rgba(0, 167, 111, 0.24)',
               '& .MuiLinearProgress-bar': {
                 borderRadius: 4,
                 bgcolor: 'primary.main',

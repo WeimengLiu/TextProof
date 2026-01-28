@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Box,
   Paper,
@@ -17,6 +17,9 @@ function TextComparison({ original, corrected, onExport }) {
   const [diffData, setDiffData] = useState(null)
   const [loadingDiff, setLoadingDiff] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  const originalScrollRef = useRef(null)
+  const correctedScrollRef = useRef(null)
+  const isSyncingScrollRef = useRef(false)
 
   useEffect(() => {
     // 检查是否有变化
@@ -41,13 +44,38 @@ function TextComparison({ original, corrected, onExport }) {
     }
   }
 
-  const renderTextWithDiff = (segments, type) => {
+  const syncScroll = useCallback((sourceEl, targetEl) => {
+    if (!sourceEl || !targetEl) return
+    if (isSyncingScrollRef.current) return
+    isSyncingScrollRef.current = true
+
+    const sourceScrollable = Math.max(1, sourceEl.scrollHeight - sourceEl.clientHeight)
+    const targetScrollable = Math.max(1, targetEl.scrollHeight - targetEl.clientHeight)
+    const ratio = sourceEl.scrollTop / sourceScrollable
+    targetEl.scrollTop = ratio * targetScrollable
+
+    requestAnimationFrame(() => {
+      isSyncingScrollRef.current = false
+    })
+  }, [])
+
+  const handleOriginalScroll = useCallback(() => {
+    syncScroll(originalScrollRef.current, correctedScrollRef.current)
+  }, [syncScroll])
+
+  const handleCorrectedScroll = useCallback(() => {
+    syncScroll(correctedScrollRef.current, originalScrollRef.current)
+  }, [syncScroll])
+
+  const renderTextWithDiff = (segments, type, scrollRef, onScroll) => {
     if (!segments) {
       return <Typography>加载中...</Typography>
     }
 
     return (
       <Box
+        ref={scrollRef}
+        onScroll={onScroll}
         sx={{
           p: 2.5,
           bgcolor: 'background.paper',
@@ -108,11 +136,15 @@ function TextComparison({ original, corrected, onExport }) {
 
   return (
     <Paper 
+      elevation={0}
       sx={{ 
-        p: { xs: 2.5, sm: 3.5 },
+        p: { xs: 3, sm: 4 },
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 2,
         transition: 'all 0.2s ease-out',
         '&:hover': {
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
         },
       }}
     >
@@ -227,7 +259,7 @@ function TextComparison({ original, corrected, onExport }) {
                 <Typography color="text.secondary">加载差异中...</Typography>
               </Box>
             ) : (
-              renderTextWithDiff(diffData?.original_segments, 'original')
+              renderTextWithDiff(diffData?.original_segments, 'original', originalScrollRef, handleOriginalScroll)
             )}
           </Grid>
           <Grid item xs={12} md={6}>
@@ -247,7 +279,7 @@ function TextComparison({ original, corrected, onExport }) {
                 <Typography color="text.secondary">加载差异中...</Typography>
               </Box>
             ) : (
-              renderTextWithDiff(diffData?.corrected_segments, 'corrected')
+              renderTextWithDiff(diffData?.corrected_segments, 'corrected', correctedScrollRef, handleCorrectedScroll)
             )}
           </Grid>
         </Grid>

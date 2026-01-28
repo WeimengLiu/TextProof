@@ -13,27 +13,28 @@ document.head.appendChild(link)
 const theme = createTheme({
   palette: {
     mode: 'light',
+    // 参考 Minimal Dashboard 配色：绿色主色 + 浅灰背景
     primary: {
-      main: '#2563EB', // Trust blue
-      light: '#3B82F6',
-      dark: '#1E40AF',
+      main: '#00A76F',
+      light: '#5BE584',
+      dark: '#007867',
       contrastText: '#FFFFFF',
     },
     secondary: {
-      main: '#F97316', // Orange CTA
-      light: '#FB923C',
-      dark: '#EA580C',
+      main: '#2065D1',
+      light: '#64B6F7',
+      dark: '#103996',
       contrastText: '#FFFFFF',
     },
     background: {
-      default: '#F8FAFC', // Light gray background
+      default: '#F4F6F8',
       paper: '#FFFFFF',
     },
     text: {
-      primary: '#1E293B', // Dark slate
-      secondary: '#64748B', // Medium slate
+      primary: '#1B2738',
+      secondary: '#637381',
     },
-    divider: '#E2E8F0', // Light border
+    divider: '#E5E8EB',
     error: {
       main: '#EF4444',
       light: '#FEE2E2',
@@ -89,25 +90,41 @@ const theme = createTheme({
           borderRadius: 8,
           padding: '10px 24px',
           transition: 'all 0.2s ease-out',
+          fontWeight: 500,
           '&:hover': {
-            transform: 'translateY(-1px)',
-            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)',
+            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.2)',
           },
         },
         contained: {
-          boxShadow: '0 2px 8px rgba(37, 99, 235, 0.15)',
+          boxShadow: '0 1px 3px rgba(37, 99, 235, 0.2)',
+          '&:hover': {
+            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)',
+          },
         },
       },
     },
     MuiPaper: {
       styleOverrides: {
         root: {
-          borderRadius: 12,
-          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1)',
+          borderRadius: 8,
           transition: 'all 0.2s ease-out',
+        },
+        elevation0: {
+          boxShadow: 'none',
         },
         elevation1: {
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1)',
+        },
+      },
+    },
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          transition: 'all 0.2s ease-out',
+          '&:hover': {
+            bgcolor: 'action.hover',
+          },
         },
       },
     },

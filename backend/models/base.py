@@ -2,6 +2,9 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BaseModelAdapter(ABC):
@@ -52,15 +55,25 @@ class BaseModelAdapter(ABC):
             Exception: 所有重试失败后抛出异常
         """
         last_error = None
+        adapter_name = self.__class__.__name__
+        
+        logger.info(f"[{adapter_name} Retry] Starting correction with max_retries={max_retries}, retry_delay={retry_delay}")
         
         for attempt in range(max_retries):
             try:
-                return await self.correct_text(text, prompt)
+                logger.info(f"[{adapter_name} Retry] Attempt {attempt + 1}/{max_retries}")
+                result = await self.correct_text(text, prompt)
+                logger.info(f"[{adapter_name} Retry] Success on attempt {attempt + 1}")
+                return result
             except Exception as e:
                 last_error = e
+                logger.warning(f"[{adapter_name} Retry] Attempt {attempt + 1} failed: {str(e)}")
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay * (attempt + 1))
+                    delay = retry_delay * (attempt + 1)
+                    logger.info(f"[{adapter_name} Retry] Waiting {delay} seconds before retry...")
+                    await asyncio.sleep(delay)
                 else:
+                    logger.error(f"[{adapter_name} Retry] All {max_retries} attempts failed")
                     raise last_error
         
         raise last_error

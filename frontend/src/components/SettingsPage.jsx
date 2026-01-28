@@ -40,10 +40,16 @@ function SettingsPage() {
   const [openaiModels, setOpenaiModels] = useState('')
   const [deepseekModels, setDeepseekModels] = useState('')
   const [ollamaModels, setOllamaModels] = useState('')
+  const [availableModels, setAvailableModels] = useState([]) // 当前提供商可用的模型列表
 
   // 文本分段配置
   const [chunkSize, setChunkSize] = useState(2000)
   const [chunkOverlap, setChunkOverlap] = useState(200)
+  // Ollama专用分段配置
+  const [ollamaChunkSize, setOllamaChunkSize] = useState(800)
+  const [ollamaChunkOverlap, setOllamaChunkOverlap] = useState(100)
+  // 云端大模型整段直发阈值
+  const [fastProviderMaxChars, setFastProviderMaxChars] = useState(10000)
 
   // 重试配置
   const [maxRetries, setMaxRetries] = useState(3)
@@ -56,35 +62,84 @@ function SettingsPage() {
     loadSettings()
   }, [])
 
-  const loadSettings = async () => {
+  // 当提供商或模型列表变化时，更新可用模型列表
+  useEffect(() => {
+    let models = []
+    if (defaultProvider === 'openai' && openaiModels) {
+      models = openaiModels.split(',').map(m => m.trim()).filter(m => m)
+    } else if (defaultProvider === 'deepseek' && deepseekModels) {
+      models = deepseekModels.split(',').map(m => m.trim()).filter(m => m)
+    } else if (defaultProvider === 'ollama' && ollamaModels) {
+      models = ollamaModels.split(',').map(m => m.trim()).filter(m => m)
+    }
+    
+    // 如果从 API 获取的模型列表存在，优先使用
+    let finalModels = []
+    if (allModels[defaultProvider] && allModels[defaultProvider].length > 0) {
+      finalModels = allModels[defaultProvider]
+    } else if (models.length > 0) {
+      finalModels = models
+    }
+    
+    setAvailableModels(finalModels)
+    
+    // 如果当前选择的模型不在可用列表中，重置
+    if (defaultModel && !finalModels.includes(defaultModel)) {
+      if (finalModels.length > 0) {
+        setDefaultModel(finalModels[0])
+      } else {
+        setDefaultModel('')
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultProvider, openaiModels, deepseekModels, ollamaModels, allModels])
+
+  const loadSettings = async (reloadPrompt = false) => {
     setLoading(true)
     setMessage({ type: '', text: '' })
     try {
-      // 加载Prompt
-      const promptData = await correctionService.getPrompt()
+      // 加载Prompt（如果reloadPrompt为true，则重新从文件加载）
+      const promptData = await correctionService.getPrompt(reloadPrompt)
       setPrompt(promptData.prompt || '')
       setPromptFile(promptData.prompt_file || '')
 
       // 加载模型配置
       const modelsData = await correctionService.getModels()
       setAllModels(modelsData.models || {})
-      setDefaultProvider(modelsData.default_provider || 'openai')
-      setDefaultModel(modelsData.default_model || '')
-
+      
       // 加载系统配置
+      let finalProvider = modelsData.default_provider || 'openai'
+      let finalModel = modelsData.default_model || ''
+      
       try {
         const configData = await correctionService.getConfig()
         if (configData.chunk_size) setChunkSize(configData.chunk_size)
         if (configData.chunk_overlap) setChunkOverlap(configData.chunk_overlap)
+        if (configData.ollama_chunk_size) setOllamaChunkSize(configData.ollama_chunk_size)
+        if (configData.ollama_chunk_overlap) setOllamaChunkOverlap(configData.ollama_chunk_overlap)
+        if (configData.fast_provider_max_chars) setFastProviderMaxChars(configData.fast_provider_max_chars)
         if (configData.max_retries) setMaxRetries(configData.max_retries)
         if (configData.retry_delay) setRetryDelay(configData.retry_delay)
-        if (configData.default_provider) setDefaultProvider(configData.default_provider)
-        if (configData.default_model) setDefaultModel(configData.default_model)
+        if (configData.default_provider) finalProvider = configData.default_provider
+        if (configData.default_model) finalModel = configData.default_model
         if (configData.openai_models) setOpenaiModels(configData.openai_models)
         if (configData.deepseek_models) setDeepseekModels(configData.deepseek_models)
         if (configData.ollama_models) setOllamaModels(configData.ollama_models)
       } catch (error) {
         console.warn('获取系统配置失败，使用默认值:', error)
+      }
+      
+      // 设置默认提供商和模型
+      setDefaultProvider(finalProvider)
+      setDefaultModel(finalModel)
+      
+      // 更新可用模型列表
+      const providerModels = modelsData.models?.[finalProvider] || []
+      setAvailableModels(providerModels)
+      
+      // 如果当前模型不在新提供商的模型列表中，重置为空或选择第一个
+      if (finalModel && !providerModels.includes(finalModel)) {
+        setDefaultModel(providerModels.length > 0 ? providerModels[0] : '')
       }
     } catch (error) {
       setMessage({ type: 'error', text: `加载配置失败: ${error.message}` })
@@ -126,6 +181,9 @@ function SettingsPage() {
       const updateData = {
         chunk_size: chunkSize,
         chunk_overlap: chunkOverlap,
+        ollama_chunk_size: ollamaChunkSize,
+        ollama_chunk_overlap: ollamaChunkOverlap,
+        fast_provider_max_chars: fastProviderMaxChars,
         max_retries: maxRetries,
         retry_delay: retryDelay,
         default_provider: defaultProvider,
@@ -158,11 +216,15 @@ function SettingsPage() {
   return (
     <Box>
       <Paper
+        elevation={0}
         sx={{
-          p: { xs: 2.5, sm: 3.5 },
+          p: { xs: 3, sm: 4 },
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: 2,
           transition: 'all 0.2s ease-out',
           '&:hover': {
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
           },
         }}
       >
@@ -172,7 +234,7 @@ function SettingsPage() {
           </Typography>
           <Button
             startIcon={<RefreshIcon />}
-            onClick={loadSettings}
+            onClick={() => loadSettings(true)}
             disabled={loading}
             size="small"
           >
@@ -286,7 +348,17 @@ function SettingsPage() {
                       <Select 
                         value={defaultProvider} 
                         label="提供商"
-                        onChange={(e) => setDefaultProvider(e.target.value)}
+                        onChange={(e) => {
+                          const newProvider = e.target.value
+                          setDefaultProvider(newProvider)
+                          // 更新可用模型列表
+                          const providerModels = allModels[newProvider] || []
+                          setAvailableModels(providerModels)
+                          // 如果当前模型不在新提供商的模型列表中，重置为第一个或空
+                          if (!providerModels.includes(defaultModel)) {
+                            setDefaultModel(providerModels.length > 0 ? providerModels[0] : '')
+                          }
+                        }}
                       >
                         {Object.keys(allModels).map((p) => (
                           <MenuItem key={p} value={p}>
@@ -301,12 +373,32 @@ function SettingsPage() {
                     <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
                       默认模型名称
                     </Typography>
-                    <TextField
-                      fullWidth
-                      value={defaultModel}
-                      onChange={(e) => setDefaultModel(e.target.value)}
-                      placeholder="如: gpt-4-turbo-preview"
-                    />
+                    <FormControl fullWidth>
+                      <InputLabel>模型名称</InputLabel>
+                      <Select 
+                        value={defaultModel} 
+                        label="模型名称"
+                        onChange={(e) => setDefaultModel(e.target.value)}
+                        disabled={availableModels.length === 0}
+                      >
+                        {availableModels.length === 0 ? (
+                          <MenuItem disabled>
+                            请先配置该提供商的模型列表
+                          </MenuItem>
+                        ) : (
+                          availableModels.map((model) => (
+                            <MenuItem key={model} value={model}>
+                              {model}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                      {availableModels.length === 0 && (
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          请先在下方配置 {defaultProvider} 的模型列表
+                        </Typography>
+                      )}
+                    </FormControl>
                   </Grid>
 
                   <Grid item xs={12}>
@@ -369,8 +461,9 @@ function SettingsPage() {
             {/* 处理配置 */}
             {tabValue === 2 && (
               <Box>
-                <Grid container spacing={3}>
-                  <Grid item xs={12} md={6}>
+                <Grid container spacing={2}>
+                  {/* 通用处理配置：分段 + 整段直发 + 重试 */}
+                  <Grid item xs={12} md={4}>
                     <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
                       文本分段大小
                     </Typography>
@@ -380,11 +473,11 @@ function SettingsPage() {
                       value={chunkSize}
                       onChange={(e) => setChunkSize(parseInt(e.target.value) || 2000)}
                       inputProps={{ min: 100, max: 10000 }}
-                      helperText="建议范围: 1000-5000"
+                      helperText="建议: 1000-5000"
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
                     <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
                       分段重叠大小
                     </Typography>
@@ -394,11 +487,25 @@ function SettingsPage() {
                       value={chunkOverlap}
                       onChange={(e) => setChunkOverlap(parseInt(e.target.value) || 200)}
                       inputProps={{ min: 0, max: chunkSize }}
-                      helperText={`建议范围: 0-${chunkSize}`}
+                      helperText={`建议: 0-${chunkSize}`}
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
+                      整段直发阈值（字符）
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      value={fastProviderMaxChars}
+                      onChange={(e) => setFastProviderMaxChars(parseInt(e.target.value) || 10000)}
+                      inputProps={{ min: 1000, max: 50000 }}
+                      helperText="OpenAI / DeepSeek 建议: 6000-12000"
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} md={4}>
                     <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
                       最大重试次数
                     </Typography>
@@ -408,11 +515,11 @@ function SettingsPage() {
                       value={maxRetries}
                       onChange={(e) => setMaxRetries(parseInt(e.target.value) || 3)}
                       inputProps={{ min: 0, max: 10 }}
-                      helperText="建议范围: 1-5"
+                      helperText="建议: 1-5"
                     />
                   </Grid>
 
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
                     <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
                       重试延迟（秒）
                     </Typography>
@@ -423,7 +530,46 @@ function SettingsPage() {
                       value={retryDelay}
                       onChange={(e) => setRetryDelay(parseFloat(e.target.value) || 1.0)}
                       inputProps={{ min: 0.1, max: 10, step: 0.1 }}
-                      helperText="建议范围: 0.5-5.0"
+                      helperText="建议: 0.5-5.0"
+                    />
+                  </Grid>
+
+                  {/* Ollama 专用分段配置 */}
+                  <Grid item xs={12}>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle1" sx={{ mb: 1.25, fontWeight: 600, color: 'primary.main' }}>
+                      Ollama 专用分段配置
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                      针对本地部署大模型（如 32B），显存有限时建议使用较小分段，仅在提供商为 Ollama 时生效
+                    </Typography>
+                  </Grid>
+
+                  <Grid item xs={12} md={4}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
+                      Ollama 分段大小
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      value={ollamaChunkSize}
+                      onChange={(e) => setOllamaChunkSize(parseInt(e.target.value) || 800)}
+                      inputProps={{ min: 100, max: 2000 }}
+                      helperText="32B + 16GB 建议: 800-1000"
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} md={4}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
+                      Ollama 分段重叠大小
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      type="number"
+                      value={ollamaChunkOverlap}
+                      onChange={(e) => setOllamaChunkOverlap(parseInt(e.target.value) || 100)}
+                      inputProps={{ min: 0, max: ollamaChunkSize }}
+                      helperText={`建议: 0-${ollamaChunkSize}（约10-15%）`}
                     />
                   </Grid>
 

@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     chunk_size: int = 2000
     chunk_overlap: int = 200
     
+    # Ollama专用分段配置（针对本地大模型，显存有限的情况）
+    ollama_chunk_size: int = 800  # 32B模型+16GB显存建议800-1000字符
+    ollama_chunk_overlap: int = 100  # 建议为chunk_size的10-15%
+    
+    # 大模型（OpenAI/DeepSeek等）整段直发阈值（字符数）
+    # 单段文本长度 <= 该值时，不再切 chunk，直接整段发送
+    fast_provider_max_chars: int = 10000
+    
     # 重试配置
     max_retries: int = 3
     retry_delay: float = 1.0
@@ -91,6 +99,9 @@ class Settings(BaseSettings):
         config_map = {
             "CHUNK_SIZE": str(self.chunk_size),
             "CHUNK_OVERLAP": str(self.chunk_overlap),
+            "OLLAMA_CHUNK_SIZE": str(self.ollama_chunk_size),
+            "OLLAMA_CHUNK_OVERLAP": str(self.ollama_chunk_overlap),
+            "FAST_PROVIDER_MAX_CHARS": str(self.fast_provider_max_chars),
             "MAX_RETRIES": str(self.max_retries),
             "RETRY_DELAY": str(self.retry_delay),
             "DEFAULT_MODEL_PROVIDER": self.default_model_provider,
