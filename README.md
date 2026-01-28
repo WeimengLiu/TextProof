@@ -6,10 +6,12 @@
 
 - ✅ **最小侵入式精校**：只纠正错误，不改变原文风格
 - ✅ **多模型支持**：支持 OpenAI、DeepSeek、Ollama 本地模型
-- ✅ **智能分段**：自动分段处理，防止上下文污染
-- ✅ **差异对比**：可视化展示原文与精校文本的差异
-- ✅ **进度追踪**：实时显示校对进度
-- ✅ **一键导出**：支持导出精校后的完整文本
+- ✅ **智能分段**：自动分段处理，支持通用分段和 Ollama 专用小分段
+- ✅ **整段直发**：对 OpenAI / DeepSeek 等云端模型，短文本可整段发送，减少切片合并
+- ✅ **差异对比**：可视化展示原文与精校文本的差异，忽略纯格式改动
+- ✅ **任务与结果管理**：后台任务队列 + 任务进度页 + 比对结果列表页
+- ✅ **系统配置面板**：前端实时调整分段、重试、默认模型、Prompt 文件等配置
+- ✅ **一键导出**：支持导出精校后的完整文本或单章节
 
 ## 系统架构
 
@@ -23,20 +25,29 @@ TextProof/
 │   │   ├── ollama_adapter.py
 │   │   └── factory.py      # 工厂模式创建适配器
 │   ├── services/           # 业务逻辑层
-│   │   └── correction_service.py
+│   │   ├── correction_service.py   # 文本精校主服务
+│   │   ├── task_manager.py         # 异步任务管理
+│   │   └── storage/sqlite_store.py # 结果持久化存储
 │   ├── utils/              # 工具模块
-│   │   ├── text_splitter.py    # 文本分段
-│   │   ├── prompt_manager.py   # Prompt管理
-│   │   └── diff_utils.py       # 差异计算
+│   │   ├── text_splitter.py       # 文本分段（支持overlap与智能合并）
+│   │   ├── chapter_splitter.py    # 按章节拆分长篇小说
+│   │   ├── prompt_manager.py      # Prompt管理（支持文件与热更新）
+│   │   ├── diff_utils.py          # 差异计算，忽略纯空白改动
+│   │   ├── cost_estimator.py      # 调用成本预估
+│   │   └── time_estimator.py      # 处理时间预估
 │   ├── config.py           # 配置管理
 │   ├── main.py             # FastAPI主应用
 │   └── requirements.txt    # Python依赖
 ├── frontend/               # 前端应用
 │   ├── src/
 │   │   ├── components/     # React组件
-│   │   │   ├── TextUpload.jsx
-│   │   │   ├── CorrectionProgress.jsx
-│   │   │   └── TextComparison.jsx
+│   │   │   ├── TextUpload.jsx             # 文本上传/输入 + 模型选择
+│   │   │   ├── CorrectionProgress.jsx     # 精校进度条
+│   │   │   ├── TextComparison.jsx         # 旧版对比组件
+│   │   │   ├── ComparisonViewPage.jsx     # 独立比对结果页面（章节/整本）
+│   │   │   ├── ResultListPage.jsx         # 比对结果列表（卡片 + 分页）
+│   │   │   ├── TaskProgressPage.jsx       # 后台任务进度列表
+│   │   │   └── SettingsPage.jsx           # 系统配置（模型/分段/Prompt等）
 │   │   ├── services/       # API服务
 │   │   │   └── api.js
 │   │   ├── App.jsx         # 主应用组件
@@ -128,7 +139,7 @@ Content-Type: application/json
 }
 ```
 
-响应：
+响应（简化示例）：
 
 ```json
 {
@@ -181,6 +192,28 @@ Content-Type: application/json
 GET /api/providers
 ```
 
+### 6. 配置与 Prompt 相关接口（简要）
+
+- 获取/更新运行时配置（分段、重试、默认模型等，可选持久化到 `.env`）：
+
+```http
+GET  /api/config
+POST /api/config
+```
+
+- 获取/更新 Prompt（可选择仅更新内存，或写入默认 Prompt 文件并更新 `PROMPT_FILE`）：
+
+```http
+GET  /api/prompt?reload=false
+POST /api/prompt
+```
+
+- 任务与结果相关：
+  - `GET /api/tasks` / `GET /api/tasks/{task_id}`：查看异步任务进度
+  - `GET /api/results`：比对结果列表（分页）
+  - `GET /api/results/{id}`：结果详情
+  - `GET /api/results/{id}/download`：下载原文或精校文本
+
 ## 核心模块说明
 
 ### 1. Model Adapter 层
@@ -200,7 +233,9 @@ GET /api/providers
 - 优先按段落（`\n\n`）分割
 - 超长段落按句子分割
 - 支持重叠（overlap）防止上下文丢失
-- 智能合并，去除重复的 overlap 部分
+- 智能合并，去除重复的 overlap 部分，兼容模型对文本的轻微改写
+- 对 Ollama 可使用更小的 `OLLAMA_CHUNK_SIZE`，适配本地大模型显存
+- 对 OpenAI / DeepSeek，当单段长度不超过 `FAST_PROVIDER_MAX_CHARS` 时可整段直发
 
 ### 3. Prompt 管理
 
@@ -209,7 +244,18 @@ GET /api/providers
 - ❌ 禁止润色、改写、增删内容
 - ❌ 禁止改变文风、语气、措辞
 
-Prompt 可通过文件自定义，便于调整。
+Prompt 支持通过文件和前端界面自定义：
+
+- 在后端 `.env` 中设置：
+
+```env
+PROMPT_FILE=./prompts/custom_prompt.txt
+```
+
+- 在前端「系统配置 → Prompt配置」：
+  - 直接编辑 Prompt 文本
+  - 选择是否持久化到默认 Prompt 文件并自动更新 `PROMPT_FILE`
+  - 点击「刷新」可强制从 Prompt 文件重新加载（无需重启后端）
 
 ### 4. 差异对比
 
@@ -242,10 +288,24 @@ print(result["corrected"])
 
 ### 后端配置（`.env`）
 
-- `CHUNK_SIZE`: 文本分段大小（默认 2000）
-- `CHUNK_OVERLAP`: 分段重叠大小（默认 200）
-- `MAX_RETRIES`: 最大重试次数（默认 3）
-- `RETRY_DELAY`: 重试延迟（秒，默认 1.0）
+- 模型与列表：
+  - `DEFAULT_MODEL_PROVIDER`: 默认模型提供商（如 `openai` / `deepseek` / `ollama`）
+  - `DEFAULT_MODEL_NAME`: 默认模型名称
+  - `OPENAI_MODELS` / `DEEPSEEK_MODELS` / `OLLAMA_MODELS`: 各提供商可用模型列表，逗号分隔
+- 分段与上下文：
+  - `CHUNK_SIZE`: 全局文本分段大小（默认 2000）
+  - `CHUNK_OVERLAP`: 全局分段重叠大小（默认 200）
+  - `OLLAMA_CHUNK_SIZE`: Ollama 专用分段大小，适配本地大模型（建议 800–1000）
+  - `OLLAMA_CHUNK_OVERLAP`: Ollama 专用分段重叠
+  - `FAST_PROVIDER_MAX_CHARS`: 对 OpenAI / DeepSeek 等云端模型的整段直发阈值（字符数）
+- 重试策略：
+  - `MAX_RETRIES`: 最大重试次数（默认 3）
+  - `RETRY_DELAY`: 重试延迟（秒，默认 1.0）
+- Prompt：
+  - `PROMPT_FILE`: 自定义 Prompt 文件路径（相对 `backend` 目录）
+
+> 建议优先通过前端「系统配置」页面修改配置并选择是否持久化到 `.env`，  
+> 直接编辑 `.env` 后需重启后端服务才能生效。
 
 ### 前端配置
 
@@ -272,9 +332,9 @@ VITE_API_BASE_URL=http://localhost:8000
 
 ### 自定义 Prompt
 
-1. 创建 Prompt 文件（如 `custom_prompt.txt`）
-2. 在代码中初始化：`PromptManager(prompt_file="custom_prompt.txt")`
-3. 或直接修改 `prompt_manager.py` 中的 `DEFAULT_PROMPT`
+1. 在 `backend/prompts/` 下创建 Prompt 文件（如 `custom_prompt.txt`）
+2. 在 `.env` 中设置 `PROMPT_FILE=./prompts/custom_prompt.txt`
+3. 通过前端「系统配置 → Prompt配置」编辑和持久化 Prompt
 
 ## 许可证
 
