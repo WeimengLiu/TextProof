@@ -4,17 +4,17 @@ import sys
 import os
 import logging
 
-# 添加backend目录到路径
-backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if backend_dir not in sys.path:
-    sys.path.insert(0, backend_dir)
-
 from models.factory import ModelAdapterFactory
 from models.base import BaseModelAdapter
 from models.exceptions import ConnectionError as ModelConnectionError, ServiceUnavailableError
 from utils.text_splitter import TextSplitter
 from utils.prompt_manager import prompt_manager
 import config
+
+# 添加backend目录到路径
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
 logger = logging.getLogger(__name__)
 
@@ -49,16 +49,171 @@ class CorrectionService:
         if provider and provider.lower() == "ollama":
             if chunk_size is None:
                 chunk_size = config.settings.ollama_chunk_size
-                logger.info(f"[CorrectionService] Using Ollama-specific chunk_size: {chunk_size}")
+                logger.info("[CorrectionService] Using Ollama-specific chunk_size: %d", chunk_size)
             if chunk_overlap is None:
                 chunk_overlap = config.settings.ollama_chunk_overlap
-                logger.info(f"[CorrectionService] Using Ollama-specific chunk_overlap: {chunk_overlap}")
+                logger.info("[CorrectionService] Using Ollama-specific chunk_overlap: %d", chunk_overlap)
+            # 保存 Ollama 的 chunk_size，用于控制每句话的最大长度上限
+            self.ollama_max_sentence_length = chunk_size
+        else:
+            self.ollama_max_sentence_length = None
         
         self.splitter = TextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap
         )
         self.prompt = prompt_manager.get_prompt()
+    
+    def _split_by_sentences(self, text: str, max_length: Optional[int] = None) -> tuple:
+        """
+        按句分割文本（针对 Ollama 小模型，逐句处理）
+        
+        分割规则：
+        1. 优先按换行符分割（每行作为一句）
+        2. 如果某一行超过 max_length，才按句号、感叹号、问号等标点进一步分割
+        3. 如果分割后仍超过 max_length，按逗号、分号分割
+        4. 如果仍超过 max_length，强制按字符数分割
+        5. 保留空行和标点符号
+        
+        Args:
+            text: 待分割的文本
+            max_length: 每句话的最大长度上限（字符数），None 表示不限制
+        
+        Returns:
+            (sentences_list, line_endings_list): 句子列表和对应的换行符列表
+        """
+        import re
+        
+        if not text:
+            return ([], [])
+        
+        def _split_by_punctuation(text: str, max_len: int) -> list:
+            """按句号、感叹号、问号分割，如果超过 max_len 则进一步分割"""
+            if max_len is None or len(text) <= max_len:
+                return [text]
+            
+            result = []
+            # 按句号、问号、感叹号分割，保留标点
+            parts = re.split(r'([。！？])', text)
+            current_sentence = ''
+            
+            for part in parts:
+                if part in ['。', '！', '？']:
+                    if current_sentence:
+                        full_sentence = current_sentence + part
+                        if len(full_sentence) <= max_len:
+                            result.append(full_sentence)
+                        else:
+                            # 超过限制，先按逗号、分号分割
+                            result.extend(_split_by_comma(current_sentence, max_len))
+                            result.append(part)
+                        current_sentence = ''
+                    else:
+                        result.append(part)
+                elif part.strip():
+                    test_sentence = current_sentence + part
+                    if len(test_sentence) <= max_len:
+                        current_sentence = test_sentence
+                    else:
+                        # 添加当前部分
+                        if current_sentence:
+                            result.append(current_sentence)
+                        # 如果 part 本身超过限制，按逗号分割或强制分割
+                        if len(part) > max_len:
+                            result.extend(_split_by_comma(part, max_len))
+                        else:
+                            current_sentence = part
+            
+            if current_sentence:
+                result.append(current_sentence)
+            
+            return result if result else [text]
+        
+        def _split_by_comma(text: str, max_len: int) -> list:
+            """按逗号、分号分割，如果仍超过则强制分割"""
+            if max_len is None or len(text) <= max_len:
+                return [text]
+            
+            result = []
+            parts = re.split(r'([，；])', text)
+            current_part = ''
+            
+            for part in parts:
+                if part in ['，', '；']:
+                    if current_part:
+                        test_sentence = current_part + part
+                        if len(test_sentence) <= max_len:
+                            result.append(test_sentence)
+                            current_part = ''
+                        else:
+                            # 当前部分超过限制，强制分割
+                            if current_part:
+                                result.extend(_force_split(current_part, max_len))
+                            result.append(part)
+                            current_part = ''
+                    else:
+                        result.append(part)
+                elif part.strip():
+                    test_sentence = current_part + part
+                    if len(test_sentence) <= max_len:
+                        current_part = test_sentence
+                    else:
+                        if current_part:
+                            result.append(current_part)
+                        if len(part) > max_len:
+                            result.extend(_force_split(part, max_len))
+                        else:
+                            current_part = part
+            
+            if current_part:
+                result.append(current_part)
+            
+            return result if result else [text]
+        
+        def _force_split(text: str, max_len: int) -> list:
+            """强制按字符数分割"""
+            if max_len is None or len(text) <= max_len:
+                return [text]
+            result = []
+            for i in range(0, len(text), max_len):
+                result.append(text[i:i + max_len])
+            return result
+        
+        # 优先按换行符分割（每行作为一句）
+        lines = text.split('\n')
+        sentences = []
+        line_endings = []  # 记录每个句子后面是否有换行符
+        
+        for line_idx, line in enumerate(lines):
+            line = line.rstrip()  # 只去掉右侧空白，保留左侧缩进
+            
+            if not line.strip():
+                # 空行：保留为单独一句
+                sentences.append('')
+                line_endings.append('\n' if line_idx < len(lines) - 1 else '')
+                continue
+            
+            # 检查这一行是否超过 max_length
+            if max_length is None or len(line) <= max_length:
+                # 不超过限制，整行作为一句
+                sentences.append(line)
+                line_endings.append('\n' if line_idx < len(lines) - 1 else '')
+            else:
+                # 超过限制，按句号、感叹号、问号等标点分割
+                split_sentences = _split_by_punctuation(line, max_length)
+                for i, s in enumerate(split_sentences):
+                    sentences.append(s)
+                    # 只有最后一个句子后面才有换行符
+                    if i < len(split_sentences) - 1:
+                        line_endings.append('')  # 中间分割的句子，无换行
+                    else:
+                        line_endings.append('\n' if line_idx < len(lines) - 1 else '')
+        
+        # 确保 sentences 和 line_endings 长度一致
+        while len(line_endings) < len(sentences):
+            line_endings.append('')
+        
+        return (sentences, line_endings) if sentences else ([text], [''])
     
     async def correct_text(
         self,
@@ -76,6 +231,115 @@ class CorrectionService:
             包含校对结果的字典
         """
         text_length = len(text)
+
+        # Ollama 专用：按句/按行逐句处理（适合小模型如 14B）
+        if self.provider == "ollama":
+            max_sentence_length = self.ollama_max_sentence_length or config.settings.ollama_chunk_size
+            logger.info("[CorrectionService] Using sentence-by-sentence mode for Ollama (text length: %d, max sentence length: %d)", text_length, max_sentence_length)
+            sentences, line_endings = self._split_by_sentences(text, max_length=max_sentence_length)
+            total_sentences = len(sentences)
+            
+            if total_sentences == 0:
+                return {
+                    "original": text,
+                    "corrected": text,
+                    "chunks_processed": 0,
+                    "total_chunks": 0
+                }
+            
+            logger.info("[CorrectionService] Split into %d sentences for Ollama processing", total_sentences)
+            
+            corrected_sentences = []
+            failed_sentences = []
+            consecutive_failures = 0
+            max_consecutive_failures = 3
+            
+            for i, sentence in enumerate(sentences):
+                # 跳过空行
+                if not sentence.strip():
+                    corrected_sentences.append(sentence)
+                    if progress_callback:
+                        progress_callback(i + 1, total_sentences)
+                    continue
+                
+                sentence_length = len(sentence)
+                logger.info("[CorrectionService] Processing sentence %d/%d (length: %d)", i+1, total_sentences, sentence_length)
+                logger.debug("[CorrectionService] Sentence %d preview: %s...", i+1, sentence[:50])
+                
+                try:
+                    corrected_sentence = await self.adapter.correct_text_with_retry(
+                        sentence,
+                        self.prompt,
+                        max_retries=config.settings.max_retries,
+                        retry_delay=config.settings.retry_delay
+                    )
+                    corrected_sentences.append(corrected_sentence)
+                    consecutive_failures = 0
+                    
+                    if progress_callback:
+                        progress_callback(i + 1, total_sentences)
+                        
+                except ModelConnectionError as e:
+                    error_msg = str(e)
+                    logger.error("[CorrectionService] Connection error at sentence %d/%d: %s", i+1, total_sentences, error_msg)
+                    corrected_sentences.append(sentence)
+                    failed_sentences.append({
+                        "chunk_index": i + 1,
+                        "error": error_msg
+                    })
+                    # 连接错误时停止
+                    for j in range(i + 1, total_sentences):
+                        corrected_sentences.append(sentences[j])
+                        failed_sentences.append({
+                            "chunk_index": j + 1,
+                            "error": f"因连接错误跳过处理: {error_msg}"
+                        })
+                    break
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    consecutive_failures += 1
+                    logger.warning("[CorrectionService] Sentence %d/%d failed: %s", i+1, total_sentences, error_msg)
+                    corrected_sentences.append(sentence)  # 使用原文
+                    failed_sentences.append({
+                        "chunk_index": i + 1,
+                        "error": error_msg
+                    })
+                    
+                    if consecutive_failures >= max_consecutive_failures:
+                        logger.error("[CorrectionService] Too many consecutive failures (%d), stopping", consecutive_failures)
+                        for j in range(i + 1, total_sentences):
+                            corrected_sentences.append(sentences[j])
+                            failed_sentences.append({
+                                "chunk_index": j + 1,
+                                "error": "因连续失败跳过处理"
+                            })
+                        break
+            
+            # 按原换行结构拼接（保留换行符）
+            corrected_parts = []
+            for i, corrected_sentence in enumerate(corrected_sentences):
+                corrected_parts.append(corrected_sentence)
+                if i < len(line_endings):
+                    corrected_parts.append(line_endings[i])
+            corrected_text = ''.join(corrected_parts)
+            
+            if len(failed_sentences) == total_sentences and total_sentences > 0:
+                error_messages = [f"句子 {fs['chunk_index']}: {fs['error']}" for fs in failed_sentences[:5]]
+                error_msg = f"所有句子校对失败: {'; '.join(error_messages)}"
+                if len(failed_sentences) > 5:
+                    error_msg += f" ... (共{len(failed_sentences)}个失败)"
+                raise RuntimeError(error_msg)
+            
+            return {
+                "original": text,
+                "corrected": corrected_text,
+                "chunks_processed": len([s for s in corrected_sentences if s.strip()]),
+                "total_chunks": total_sentences,
+                "failed_chunks": len(failed_sentences),
+                "has_failures": len(failed_sentences) > 0,
+                "failure_details": failed_sentences if failed_sentences else None
+            }
 
         # 对于 OpenAI / DeepSeek 这类“云端大模型”，单个章节在一定长度以内时可以直接整段发送，
         # 避免不必要的分段和合并，保持上下文完整性。
@@ -141,15 +405,15 @@ class CorrectionService:
         consecutive_failures = 0  # 连续失败计数
         max_consecutive_failures = 3  # 最大连续失败次数，超过则停止
         
-        logger.info(f"[CorrectionService] Starting correction of {total_chunks} chunks")
-        logger.info(f"[CorrectionService] Using adapter: {adapter_name}")
-        logger.info(f"[CorrectionService] Max retries: {config.settings.max_retries}, Retry delay: {config.settings.retry_delay}")
+        logger.info("[CorrectionService] Starting correction of %d chunks", total_chunks)
+        logger.info("[CorrectionService] Using adapter: %s", adapter_name)
+        logger.info("[CorrectionService] Max retries: %d, Retry delay: %.1f", config.settings.max_retries, config.settings.retry_delay)
         
         for i, chunk in enumerate(chunks):
             chunk_length = len(chunk)
             chunk_preview = chunk[:50] + "..." if len(chunk) > 50 else chunk
-            logger.info(f"[CorrectionService] Processing chunk {i+1}/{total_chunks} (length: {chunk_length})")
-            logger.debug(f"[CorrectionService] Chunk {i+1} preview: {chunk_preview}")
+            logger.info("[CorrectionService] Processing chunk %d/%d (length: %d)", i+1, total_chunks, chunk_length)
+            logger.debug("[CorrectionService] Chunk %d preview: %s", i+1, chunk_preview)
             
             try:
                 corrected_chunk = await self.adapter.correct_text_with_retry(
@@ -159,7 +423,7 @@ class CorrectionService:
                     retry_delay=config.settings.retry_delay
                 )
                 corrected_length = len(corrected_chunk)
-                logger.info(f"[CorrectionService] Chunk {i+1}/{total_chunks} corrected successfully (original: {chunk_length}, corrected: {corrected_length})")
+                logger.info("[CorrectionService] Chunk %d/%d corrected successfully (original: %d, corrected: %d)", i+1, total_chunks, chunk_length, corrected_length)
                 corrected_chunks.append(corrected_chunk)
                 consecutive_failures = 0  # 重置连续失败计数
                 
@@ -169,8 +433,8 @@ class CorrectionService:
             except ModelConnectionError as e:
                 # 连接错误：立即停止处理，所有chunk都视为失败
                 error_msg = str(e)
-                logger.error(f"[CorrectionService] Connection error detected at chunk {i+1}/{total_chunks}: {error_msg}")
-                logger.error(f"[CorrectionService] Stopping processing due to connection error - all chunks will be marked as failed")
+                logger.error("[CorrectionService] Connection error detected at chunk %d/%d: %s", i+1, total_chunks, error_msg)
+                logger.error("[CorrectionService] Stopping processing due to connection error - all chunks will be marked as failed")
                 
                 # 当前失败的chunk
                 corrected_chunks.append(chunks[i])
@@ -193,8 +457,8 @@ class CorrectionService:
                 # 服务不可用：记录但继续尝试，如果连续失败则停止
                 error_msg = str(e)
                 consecutive_failures += 1
-                logger.warning(f"[CorrectionService] Service unavailable at chunk {i+1}/{total_chunks}: {error_msg}")
-                logger.warning(f"[CorrectionService] Consecutive failures: {consecutive_failures}/{max_consecutive_failures}")
+                logger.warning("[CorrectionService] Service unavailable at chunk %d/%d: %s", i+1, total_chunks, error_msg)
+                logger.warning("[CorrectionService] Consecutive failures: %d/%d", consecutive_failures, max_consecutive_failures)
                 
                 corrected_chunks.append(chunk)
                 failed_chunks.append({
@@ -205,7 +469,7 @@ class CorrectionService:
                 
                 # 如果连续失败次数过多，停止处理
                 if consecutive_failures >= max_consecutive_failures:
-                    logger.error(f"[CorrectionService] Too many consecutive failures ({consecutive_failures}), stopping processing")
+                    logger.error("[CorrectionService] Too many consecutive failures (%d), stopping processing", consecutive_failures)
                     # 为剩余chunk填充原文并标记为失败
                     for j in range(i + 1, total_chunks):
                         corrected_chunks.append(chunks[j])
@@ -218,9 +482,9 @@ class CorrectionService:
                 # 其他错误：记录但继续处理
                 error_msg = str(e)
                 consecutive_failures += 1
-                logger.error(f"[CorrectionService] Chunk {i+1}/{total_chunks} correction failed: {error_msg}")
-                logger.error(f"[CorrectionService] Using original text for chunk {i+1}")
-                logger.warning(f"[CorrectionService] Consecutive failures: {consecutive_failures}/{max_consecutive_failures}")
+                logger.error("[CorrectionService] Chunk %d/%d correction failed: %s", i+1, total_chunks, error_msg)
+                logger.error("[CorrectionService] Using original text for chunk %d", i+1)
+                logger.warning("[CorrectionService] Consecutive failures: %d/%d", consecutive_failures, max_consecutive_failures)
                 
                 corrected_chunks.append(chunk)
                 failed_chunks.append({
@@ -231,7 +495,7 @@ class CorrectionService:
                 
                 # 如果连续失败次数过多，停止处理
                 if consecutive_failures >= max_consecutive_failures:
-                    logger.error(f"[CorrectionService] Too many consecutive failures ({consecutive_failures}), stopping processing")
+                    logger.error("[CorrectionService] Too many consecutive failures (%d), stopping processing", consecutive_failures)
                     # 为剩余chunk填充原文并标记为失败
                     for j in range(i + 1, total_chunks):
                         corrected_chunks.append(chunks[j])

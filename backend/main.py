@@ -151,10 +151,10 @@ async def correct_text(request: CorrectionRequest):
     - chunk_size: 分段大小（可选）
     - chunk_overlap: 分段重叠大小（可选）
     """
-    logger.info(f"[API] /api/correct called")
-    logger.info(f"[API] Provider: {request.provider}, Model: {request.model_name}")
-    logger.info(f"[API] Text length: {len(request.text)} characters")
-    logger.info(f"[API] Chunk size: {request.chunk_size}, Overlap: {request.chunk_overlap}")
+    logger.info("[API] /api/correct called")
+    logger.info("[API] Provider: %s, Model: %s", request.provider, request.model_name)
+    logger.info("[API] Text length: %d characters", len(request.text))
+    logger.info("[API] Chunk size: %s, Overlap: %s", request.chunk_size, request.chunk_overlap)
     
     try:
         service = get_service(
@@ -171,11 +171,11 @@ async def correct_text(request: CorrectionRequest):
                 chunk_overlap=request.chunk_overlap
             )
         
-        logger.info(f"[API] Starting text correction...")
+        logger.info("[API] Starting text correction...")
         result = await service.correct_text(request.text)
-        logger.info(f"[API] Text correction completed")
-        logger.info(f"[API] Chunks processed: {result.get('chunks_processed')}/{result.get('total_chunks')}")
-        logger.info(f"[API] Failed chunks: {result.get('failed_chunks', 0)}")
+        logger.info("[API] Text correction completed")
+        logger.info("[API] Chunks processed: %d/%d", result.get('chunks_processed'), result.get('total_chunks'))
+        logger.info("[API] Failed chunks: %d", result.get('failed_chunks', 0))
         
         # 检查是否有变化（忽略纯格式差异）
         has_changes = has_meaningful_changes(result["original"], result["corrected"])
@@ -191,7 +191,7 @@ async def correct_text(request: CorrectionRequest):
             failure_details=result.get("failure_details")
         )
     except Exception as e:
-        logger.error(f"[API] Correction failed: {str(e)}")
+        logger.error("[API] Correction failed: %s", str(e))
         logger.exception(e)
         raise HTTPException(status_code=500, detail=f"校对失败: {str(e)}")
 
@@ -874,8 +874,8 @@ if __name__ == "__main__":
     if args.dev:
         logger.info("=" * 60)
         logger.info("🚀 启动开发模式（热重载已启用）")
-        logger.info(f"📍 地址: http://{args.host}:{args.port}")
-        logger.info(f"📁 监听目录: {', '.join(reload_dirs)}")
+        logger.info("📍 地址: http://%s:%d", args.host, args.port)
+        logger.info("📁 监听目录: %s", ', '.join(reload_dirs))
         logger.info("💡 代码修改后会自动重启服务")
         logger.info("=" * 60)
         uvicorn.run(
@@ -889,7 +889,7 @@ if __name__ == "__main__":
     else:
         logger.info("=" * 60)
         logger.info("🚀 启动生产模式")
-        logger.info(f"📍 地址: http://{args.host}:{args.port}")
+        logger.info("📍 地址: http://%s:%d", args.host, args.port)
         logger.info("💡 使用 --dev 参数启用开发模式（热重载）")
         logger.info("=" * 60)
         uvicorn.run(

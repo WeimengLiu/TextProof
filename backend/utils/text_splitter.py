@@ -165,11 +165,11 @@ class TextSplitter:
             if overlap_removed is not None:
                 # 找到了重叠，只添加不重叠的部分
                 removed_len = len(curr_chunk) - len(overlap_removed)
-                logger.debug(f"[TextSplitter] Chunk {i+1}: Found overlap of {removed_len} chars, removed")
+                logger.debug("[TextSplitter] Chunk %d: Found overlap of %d chars, removed", i+1, removed_len)
                 merged += overlap_removed
             else:
                 # 没找到重叠，直接拼接（用换行分隔）
-                logger.debug(f"[TextSplitter] Chunk {i+1}: No overlap found, appending full chunk")
+                logger.debug("[TextSplitter] Chunk %d: No overlap found, appending full chunk", i+1)
                 merged += "\n\n" + curr_chunk
         
         return merged

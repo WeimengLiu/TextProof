@@ -25,13 +25,13 @@ class OllamaAdapter(BaseModelAdapter):
         text_length = len(text)
         text_preview = text[:100] + "..." if len(text) > 100 else text
         
-        logger.info(f"[Ollama] 开始校对请求")
-        logger.info(f"[Ollama] Base URL: {self.base_url}")
-        logger.info(f"[Ollama] Model: {self.model_name}")
-        logger.info(f"[Ollama] Request URL: {url}")
-        logger.info(f"[Ollama] Text length: {text_length} characters")
-        logger.info(f"[Ollama] Text preview: {text_preview}")
-        logger.info(f"[Ollama] Timeout: {self.timeout} seconds")
+        logger.info("[Ollama] 开始校对请求")
+        logger.info("[Ollama] Base URL: %s", self.base_url)
+        logger.info("[Ollama] Model: %s", self.model_name)
+        logger.info("[Ollama] Request URL: %s", url)
+        logger.info("[Ollama] Text length: %d characters", text_length)
+        logger.info("[Ollama] Text preview: %s", text_preview)
+        logger.info("[Ollama] Timeout: %.1f seconds", self.timeout)
         
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -46,7 +46,7 @@ class OllamaAdapter(BaseModelAdapter):
                 estimated_tokens = text_length * 2  # 输入文本的token估算
                 num_predict = max(estimated_tokens + 1000, 2048)  # 至少2048，确保有足够输出空间
                 
-                logger.info(f"[Ollama] Estimated input tokens: {estimated_tokens}, num_predict: {num_predict}")
+                logger.info("[Ollama] Estimated input tokens: %d, num_predict: %d", estimated_tokens, num_predict)
                 
                 request_payload = {
                     "model": self.model_name,
@@ -58,14 +58,14 @@ class OllamaAdapter(BaseModelAdapter):
                     }
                 }
                 
-                logger.info(f"[Ollama] Request payload size: {prompt_length} characters")
-                logger.info(f"[Ollama] Request payload preview: {full_prompt[:200]}...")
-                logger.info(f"[Ollama] Sending POST request to {url}")
+                logger.info("[Ollama] Request payload size: %d characters", prompt_length)
+                logger.info("[Ollama] Request payload preview: %s...", full_prompt[:200])
+                logger.info("[Ollama] Sending POST request to %s", url)
                 
                 response = await client.post(url, json=request_payload)
                 
-                logger.info(f"[Ollama] Response status code: {response.status_code}")
-                logger.info(f"[Ollama] Response headers: {dict(response.headers)}")
+                logger.info("[Ollama] Response status code: %d", response.status_code)
+                logger.info("[Ollama] Response headers: %s", dict(response.headers))
                 
                 response.raise_for_status()
                 
@@ -73,8 +73,8 @@ class OllamaAdapter(BaseModelAdapter):
                 raw_response = result.get("response", "")
                 response_text = raw_response.strip()
                 
-                logger.info(f"[Ollama] Raw response length: {len(raw_response)} characters")
-                logger.info(f"[Ollama] Raw response preview: {raw_response[:300]}...")
+                logger.info("[Ollama] Raw response length: %d characters", len(raw_response))
+                logger.info("[Ollama] Raw response preview: %s...", raw_response[:300])
                 
                 # 清理可能包含的提示词标记
                 # 移除开头的"待校对文本："、"校对后的文本："等标记
@@ -111,9 +111,9 @@ class OllamaAdapter(BaseModelAdapter):
                 
                 response_length = len(response_text)
                 
-                logger.info(f"[Ollama] Response received successfully")
-                logger.info(f"[Ollama] Response text length: {response_length} characters")
-                logger.info(f"[Ollama] Response preview: {response_text[:200]}...")
+                logger.info("[Ollama] Response received successfully")
+                logger.info("[Ollama] Response text length: %d characters", response_length)
+                logger.info("[Ollama] Response preview: %s...", response_text[:200])
                 
                 # 检查响应是否异常短（可能是被截断或清理逻辑有问题）
                 if response_length < text_length * 0.5:
@@ -121,56 +121,56 @@ class OllamaAdapter(BaseModelAdapter):
                         f"[Ollama] Warning: Response length ({response_length}) is much shorter than "
                         f"input length ({text_length}). This might indicate truncation or cleaning issue."
                     )
-                    logger.warning(f"[Ollama] Full response: {response_text}")
+                    logger.warning("[Ollama] Full response: %s", response_text)
                 
                 return response_text
                 
         except httpx.TimeoutException as e:
             error_msg = f"Ollama API调用超时（{self.timeout}秒）"
-            logger.error(f"[Ollama] {error_msg}")
-            logger.error(f"[Ollama] Timeout exception: {str(e)}")
-            logger.error(f"[Ollama] Request URL: {url}")
+            logger.error("[Ollama] %s", error_msg)
+            logger.error("[Ollama] Timeout exception: %s", str(e))
+            logger.error("[Ollama] Request URL: %s", url)
             raise Exception(error_msg)
         except httpx.ConnectError as e:
             error_msg = f"Ollama API连接失败: 无法连接到 {self.base_url}"
-            logger.error(f"[Ollama] {error_msg}")
-            logger.error(f"[Ollama] Connection error: {str(e)}")
-            logger.error(f"[Ollama] Request URL: {url}")
-            logger.error(f"[Ollama] Base URL: {self.base_url}")
+            logger.error("[Ollama] %s", error_msg)
+            logger.error("[Ollama] Connection error: %s", str(e))
+            logger.error("[Ollama] Request URL: %s", url)
+            logger.error("[Ollama] Base URL: %s", self.base_url)
             raise ModelConnectionError(error_msg)
         except httpx.HTTPStatusError as e:
             error_msg = f"Ollama API返回错误状态码: {e.response.status_code}"
-            logger.error(f"[Ollama] {error_msg}")
-            logger.error(f"[Ollama] Response status: {e.response.status_code}")
-            logger.error(f"[Ollama] Response text: {e.response.text[:500]}")
-            logger.error(f"[Ollama] Request URL: {url}")
+            logger.error("[Ollama] %s", error_msg)
+            logger.error("[Ollama] Response status: %d", e.response.status_code)
+            logger.error("[Ollama] Response text: %s", e.response.text[:500])
+            logger.error("[Ollama] Request URL: %s", url)
             raise Exception(f"{error_msg} - {e.response.text[:200]}")
         except Exception as e:
             error_msg = f"Ollama API调用失败: {str(e)}"
-            logger.error(f"[Ollama] {error_msg}")
-            logger.error(f"[Ollama] Exception type: {type(e).__name__}")
-            logger.error(f"[Ollama] Exception details: {str(e)}")
-            logger.error(f"[Ollama] Request URL: {url}")
-            logger.error(f"[Ollama] Base URL: {self.base_url}")
+            logger.error("[Ollama] %s", error_msg)
+            logger.error("[Ollama] Exception type: %s", type(e).__name__)
+            logger.error("[Ollama] Exception details: %s", str(e))
+            logger.error("[Ollama] Request URL: %s", url)
+            logger.error("[Ollama] Base URL: %s", self.base_url)
             raise Exception(error_msg)
     
     async def health_check(self) -> bool:
         """检查Ollama服务是否可用"""
         url = f"{self.base_url}/api/tags"
-        logger.info(f"[Ollama Health] Checking health at {url}")
+        logger.info("[Ollama Health] Checking health at %s", url)
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(url)
                 status_ok = response.status_code == 200
-                logger.info(f"[Ollama Health] Status code: {response.status_code}, Health: {status_ok}")
+                logger.info("[Ollama Health] Status code: %d, Health: %s", response.status_code, status_ok)
                 if status_ok:
                     try:
                         result = response.json()
-                        logger.info(f"[Ollama Health] Available models: {result.get('models', [])}")
+                        logger.info("[Ollama Health] Available models: %s", result.get('models', []))
                     except:
                         pass
                 return status_ok
         except Exception as e:
-            logger.error(f"[Ollama Health] Health check failed: {str(e)}")
-            logger.error(f"[Ollama Health] URL: {url}")
+            logger.error("[Ollama Health] Health check failed: %s", str(e))
+            logger.error("[Ollama Health] URL: %s", url)
             return False

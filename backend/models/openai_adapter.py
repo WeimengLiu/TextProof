@@ -47,11 +47,11 @@ class OpenAIAdapter(BaseModelAdapter):
             
             # 检查是否是连接错误
             if any(keyword in error_lower for keyword in ['connection', 'connect', 'network', 'dns', 'timeout', 'unreachable']):
-                logger.error(f"[OpenAI] Connection error detected: {error_msg}")
+                logger.error("[OpenAI] Connection error detected: %s", error_msg)
                 raise ModelConnectionError(f"OpenAI API连接失败: {error_msg}")
             # 检查是否是服务不可用错误
             elif any(keyword in error_lower for keyword in ['503', '502', '504', 'service unavailable', 'bad gateway']):
-                logger.error(f"[OpenAI] Service unavailable: {error_msg}")
+                logger.error("[OpenAI] Service unavailable: %s", error_msg)
                 raise ServiceUnavailableError(f"OpenAI API服务不可用: {error_msg}")
             else:
                 raise Exception(f"OpenAI API调用失败: {error_msg}")

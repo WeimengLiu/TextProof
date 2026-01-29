@@ -42,8 +42,8 @@ class DeepSeekAdapter(BaseModelAdapter):
             raw_response = response.choices[0].message.content
             response_text = raw_response.strip()
             
-            logger.info(f"[DeepSeek] Raw response length: {len(raw_response)} characters")
-            logger.info(f"[DeepSeek] Raw response preview: {raw_response[:300]}...")
+            logger.info("[DeepSeek] Raw response length: %d characters", len(raw_response))
+            logger.info("[DeepSeek] Raw response preview: %s...", raw_response[:300])
             
             # 清理可能包含的提示词标记（类似 Ollama 的处理）
             markers_to_remove = [
@@ -59,7 +59,7 @@ class DeepSeekAdapter(BaseModelAdapter):
             for marker in markers_to_remove:
                 if response_text.startswith(marker):
                     response_text = response_text[len(marker):].strip()
-                    logger.info(f"[DeepSeek] Removed leading marker: {marker}")
+                    logger.info("[DeepSeek] Removed leading marker: %s", marker)
                     break
             
             # 检查是否在文本中间出现标记（可能是模型重复了提示词）
@@ -72,11 +72,11 @@ class DeepSeekAdapter(BaseModelAdapter):
                         
                         if len(after_marker) > len(before_marker) * 0.8 or len(before_marker) < 50:
                             response_text = after_marker
-                            logger.info(f"[DeepSeek] Removed middle marker: {marker}")
+                            logger.info("[DeepSeek] Removed middle marker: %s", marker)
                             break
             
-            logger.info(f"[DeepSeek] Final response length: {len(response_text)} characters")
-            logger.info(f"[DeepSeek] Final response preview: {response_text[:200]}...")
+            logger.info("[DeepSeek] Final response length: %d characters", len(response_text))
+            logger.info("[DeepSeek] Final response preview: %s...", response_text[:200])
             
             return response_text
         except Exception as e:
@@ -85,11 +85,11 @@ class DeepSeekAdapter(BaseModelAdapter):
             
             # 检查是否是连接错误
             if any(keyword in error_lower for keyword in ['connection', 'connect', 'network', 'dns', 'timeout', 'unreachable']):
-                logger.error(f"[DeepSeek] Connection error detected: {error_msg}")
+                logger.error("[DeepSeek] Connection error detected: %s", error_msg)
                 raise ModelConnectionError(f"DeepSeek API连接失败: {error_msg}")
             # 检查是否是服务不可用错误
             elif any(keyword in error_lower for keyword in ['503', '502', '504', 'service unavailable', 'bad gateway']):
-                logger.error(f"[DeepSeek] Service unavailable: {error_msg}")
+                logger.error("[DeepSeek] Service unavailable: %s", error_msg)
                 raise ServiceUnavailableError(f"DeepSeek API服务不可用: {error_msg}")
             else:
                 raise Exception(f"DeepSeek API调用失败: {error_msg}")

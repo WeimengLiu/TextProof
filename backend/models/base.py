@@ -57,23 +57,23 @@ class BaseModelAdapter(ABC):
         last_error = None
         adapter_name = self.__class__.__name__
         
-        logger.info(f"[{adapter_name} Retry] Starting correction with max_retries={max_retries}, retry_delay={retry_delay}")
+        logger.info("[%s Retry] Starting correction with max_retries=%d, retry_delay=%.1f", adapter_name, max_retries, retry_delay)
         
         for attempt in range(max_retries):
             try:
-                logger.info(f"[{adapter_name} Retry] Attempt {attempt + 1}/{max_retries}")
+                logger.info("[%s Retry] Attempt %d/%d", adapter_name, attempt + 1, max_retries)
                 result = await self.correct_text(text, prompt)
-                logger.info(f"[{adapter_name} Retry] Success on attempt {attempt + 1}")
+                logger.info("[%s Retry] Success on attempt %d", adapter_name, attempt + 1)
                 return result
             except Exception as e:
                 last_error = e
-                logger.warning(f"[{adapter_name} Retry] Attempt {attempt + 1} failed: {str(e)}")
+                logger.warning("[%s Retry] Attempt %d failed: %s", adapter_name, attempt + 1, str(e))
                 if attempt < max_retries - 1:
                     delay = retry_delay * (attempt + 1)
-                    logger.info(f"[{adapter_name} Retry] Waiting {delay} seconds before retry...")
+                    logger.info("[%s Retry] Waiting %.1f seconds before retry...", adapter_name, delay)
                     await asyncio.sleep(delay)
                 else:
-                    logger.error(f"[{adapter_name} Retry] All {max_retries} attempts failed")
+                    logger.error("[%s Retry] All %d attempts failed", adapter_name, max_retries)
                     raise last_error
         
         raise last_error
