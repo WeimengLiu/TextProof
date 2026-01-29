@@ -156,27 +156,8 @@ function App() {
 
       setCorrectedText(result.corrected)
 
-      // 保存到“比对结果”列表（输入框直接校对）
-      try {
-        const now = new Date()
-        const filename = `输入框校对结果_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
-          now.getDate()
-        ).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(
-          2,
-          '0'
-        )}${String(now.getSeconds()).padStart(2, '0')}`
-
-        await correctionService.saveManualResult({
-          original: text,
-          corrected: result.corrected,
-          filename,
-          provider: options?.provider,
-          model_name: options?.model_name,
-        })
-      } catch (e) {
-        // 保存失败不影响展示结果，仅记录到控制台
-        console.warn('保存输入框校对结果失败:', e)
-      }
+      // 注意：结果已由后端自动保存到比对结果列表
+      // 即使前端超时断开，后端完成后也会保存结果
     } catch (err) {
       setError(err.message || '校对失败，请重试')
       console.error('校对错误:', err)

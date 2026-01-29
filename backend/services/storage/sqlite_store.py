@@ -176,6 +176,11 @@ class SqliteStore:
         use_chapters = bool(result.get("use_chapters")) or bool(chapters)
         original = result.get("original") or ""
         corrected = result.get("corrected") or ""
+        orig_len: Optional[int] = None
+        corr_len: Optional[int] = None
+        if chapters:
+            orig_len = sum(len(ch.get("original") or "") for ch in chapters)
+            corr_len = sum(len(ch.get("corrected") or "") for ch in chapters)
         self.upsert_result(
             result_id=result_id,
             task_id=result.get("task_id"),
@@ -189,6 +194,8 @@ class SqliteStore:
             completed_at=result.get("completed_at"),
             original_text=original,
             corrected_text=corrected,
+            original_length=orig_len,
+            corrected_length=corr_len,
         )
         if chapters:
             self.replace_chapters(result_id, chapters)
@@ -211,7 +218,11 @@ class SqliteStore:
         completed_at: Optional[str],
         original_text: str,
         corrected_text: str,
+        original_length: Optional[int] = None,
+        corrected_length: Optional[int] = None,
     ) -> None:
+        ol = original_length if original_length is not None else len(original_text or "")
+        cl = corrected_length if corrected_length is not None else len(corrected_text or "")
         with self._lock:
             conn = self._connect()
             try:
@@ -251,8 +262,8 @@ class SqliteStore:
                         completed_at,
                         original_text,
                         corrected_text,
-                        len(original_text or ""),
-                        len(corrected_text or ""),
+                        ol,
+                        cl,
                     ),
                 )
                 conn.commit()
@@ -338,6 +349,8 @@ class SqliteStore:
                     "use_chapters": bool(r["use_chapters"]),
                     "created_at": r["created_at"],
                     "completed_at": r["completed_at"],
+                    "original_length": int(r["original_length"] or 0),
+                    "corrected_length": int(r["corrected_length"] or 0),
                 }
                 if include_text and not out["use_chapters"]:
                     out["original"] = r["original_text"] or ""

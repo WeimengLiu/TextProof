@@ -367,6 +367,16 @@ function ResultListPage({ onViewComparison }) {
                           {formatFileSize(result.corrected_length)}
                         </Typography>
                       </Box>
+                      {(result.provider || result.model_name) && (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="caption" color="text.secondary">
+                            模型
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8125rem' }} noWrap title={[result.provider, result.model_name].filter(Boolean).join(' / ')}>
+                            {[result.provider, result.model_name].filter(Boolean).join(' · ') || '—'}
+                          </Typography>
+                        </Box>
+                      )}
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Typography variant="caption" color="text.secondary">
                           完成时间
@@ -619,11 +629,40 @@ function ResultListPage({ onViewComparison }) {
                 </Typography>
               </Paper>
 
+              {(viewResult.provider || viewResult.model_name) && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    mb: 3,
+                    bgcolor: 'action.hover',
+                    borderRadius: 1.5,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>
+                    校对模型
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    提供商: {viewResult.provider || '—'} · 模型: {viewResult.model_name || '—'}
+                  </Typography>
+                </Paper>
+              )}
+
               {viewResult.use_chapters && viewResult.chapters ? (
                 <Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontWeight: 500 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 500 }}>
                     共 {viewResult.chapter_count} 个章节
                   </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      原文总长度: <strong>{formatFileSize(viewResult.original_length ?? 0)}</strong>
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      精校总长度: <strong>{formatFileSize(viewResult.corrected_length ?? 0)}</strong>
+                    </Typography>
+                  </Box>
                   <List sx={{ p: 0 }}>
                     {viewResult.chapters.map((chapter, index) => (
                       <Card

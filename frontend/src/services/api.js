@@ -4,7 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 300000, // 5分钟超时
+  timeout: 1800000, // 30分钟超时（针对大文本和慢模型）
 })
 
 export const correctionService = {

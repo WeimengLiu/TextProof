@@ -180,6 +180,24 @@ async def correct_text(request: CorrectionRequest):
         # 检查是否有变化（忽略纯格式差异）
         has_changes = has_meaningful_changes(result["original"], result["corrected"])
         
+        # 自动保存结果到比对结果列表（即使前端超时断开，结果也会保存）
+        result_id = None
+        try:
+            now = dt.datetime.now()
+            filename = f"输入框校对结果_{now.strftime('%Y%m%d_%H%M%S')}"
+            result_id = task_manager.save_manual_result(
+                filename=filename,
+                original=result["original"],
+                corrected=result["corrected"],
+                has_changes=has_changes,
+                provider=request.provider,
+                model_name=request.model_name,
+            )
+            logger.info("[API] Result saved to database with result_id: %s", result_id)
+        except Exception as e:
+            # 保存失败不影响返回结果，仅记录日志
+            logger.warning("[API] Failed to save result to database: %s", str(e))
+        
         return CorrectionResponse(
             original=result["original"],
             corrected=result["corrected"],
@@ -725,23 +743,30 @@ async def get_result(result_id: str, include_text: bool = Query(True)):
     
     # 如果结果很大，简化返回（前端可以单独请求章节）
     if result.get("use_chapters") and result.get("chapters"):
-        # 返回章节列表，不返回完整文本
+        chapters = result["chapters"]
+        # 章节元数据来自 store，只有 original_length/corrected_length，无 original/corrected 文本
+        total_original = sum(ch.get("original_length", 0) for ch in chapters)
+        total_corrected = sum(ch.get("corrected_length", 0) for ch in chapters)
         simplified_result = {
             "result_id": result["result_id"],
             "task_id": result.get("task_id"),
             "filename": result["filename"],
             "has_changes": result["has_changes"],
             "use_chapters": True,
-            "chapter_count": len(result["chapters"]),
+            "chapter_count": len(chapters),
+            "original_length": total_original,
+            "corrected_length": total_corrected,
+            "provider": result.get("provider"),
+            "model_name": result.get("model_name"),
             "chapters": [
                 {
                     "chapter_index": ch["chapter_index"],
                     "chapter_title": ch["chapter_title"],
                     "has_changes": ch.get("has_changes", False),
-                    "original_length": len(ch["original"]),
-                    "corrected_length": len(ch["corrected"]),
+                    "original_length": ch.get("original_length", 0),
+                    "corrected_length": ch.get("corrected_length", 0),
                 }
-                for ch in result["chapters"]
+                for ch in chapters
             ],
             "created_at": result["created_at"],
             "completed_at": result.get("completed_at"),
