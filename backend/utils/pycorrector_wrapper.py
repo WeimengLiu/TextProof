@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 # 懒加载：按 model 类型缓存实例，避免在非 Ollama 路径导入
 _correctors = {}
 _warned_missing = False  # 仅首次打印缺失依赖提示，避免刷屏
+_warned_kenlm = False  # 仅首次打印 kenlm 不可用提示
 
 
 def _get_corrector(model: Optional[str] = None):
@@ -76,7 +77,16 @@ def correct_sentence_sync(sentence: str, model: Optional[str] = None) -> str:
             return result[0] if isinstance(result[0], str) else sentence
         return sentence
     except Exception as e:
-        logger.warning("[pycorrector] 纠错异常，返回原文: %s", e)
+        err_msg = str(e).lower()
+        global _warned_kenlm
+        if not _warned_kenlm and ("kenlm" in err_msg or "dependencies" in err_msg):
+            _warned_kenlm = True
+            logger.warning(
+                "[pycorrector] Kenlm 未安装或不可用: %s。可尝试 pip install kenlm；Windows 下若安装失败，请在设置中改用 macbert 预纠错或关闭预纠错。",
+                e,
+            )
+        else:
+            logger.warning("[pycorrector] 纠错异常，返回原文: %s", e)
         return sentence
 
 

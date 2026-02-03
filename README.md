@@ -323,7 +323,7 @@ VITE_API_BASE_URL=http://localhost:8000
 当使用 **Ollama** 时，可在设置页开启「Ollama 预纠错」：先经 [pycorrector](https://github.com/shibing624/pycorrector) 一轮纠错，再将结果送入 Ollama 做二次纠错，以提升本地模型效果。
 
 - **预纠错模型**：默认 `kenlm`（统计模型，CPU、轻量；首次使用会下载语言模型到 `~/.pycorrector/`）。可选 `macbert`、`gpt`，效果更好但需更多依赖与显存。
-- **依赖**：`pip install pycorrector torch`（pycorrector 依赖 PyTorch）；若未安装或加载失败，将跳过预纠错，仅使用 Ollama 单轮纠错。
+- **依赖**：`pip install pycorrector torch kenlm`（pycorrector 依赖 PyTorch，kenlm 模型需 kenlm 库）。若未安装或加载失败，将跳过预纠错，仅使用 Ollama 单轮纠错。**Windows**：kenlm 在 Windows 下可能需在 Cygwin 中安装或安装失败，可改为在设置中选择 macbert 预纠错或关闭预纠错。
 - **配置**：前端「系统配置 → 处理配置」中「Ollama 预纠错」区块可开关并选择预纠错模型；或通过 `.env` 设置 `OLLAMA_USE_PYCORRECTOR`、`OLLAMA_PYCORRECTOR_MODEL`。
 
 ## 注意事项
