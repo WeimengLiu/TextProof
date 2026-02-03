@@ -27,8 +27,7 @@ cp .env.example .env
 
 # 启动服务
 python main.py
-# 或使用脚本
-../start_backend.sh
+# 或使用脚本：Linux/macOS 用 ../start_backend.sh，Windows 用 ..\start_backend.bat
 ```
 
 后端将在 `http://localhost:8000` 启动。
@@ -44,8 +43,7 @@ npm install
 
 # 启动开发服务器
 npm run dev
-# 或使用脚本
-../start_frontend.sh
+# 或使用脚本：Linux/macOS 用 ../start_frontend.sh，Windows 用 ..\start_frontend.bat
 ```
 
 前端将在 `http://localhost:3000` 启动。
