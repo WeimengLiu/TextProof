@@ -6,6 +6,12 @@ import {
   IconButton,
   Button,
   Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Pagination,
   CircularProgress,
   Alert,
@@ -264,199 +270,185 @@ function ResultListPage({ onViewComparison }) {
           </Box>
         ) : (
           <Box>
-            {/* Card Grid */}
-            <Box
+            {/* Dense table view for large result sets */}
+            <TableContainer
               sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  sm: 'repeat(2, 1fr)',
-                  lg: 'repeat(3, 1fr)',
-                },
-                gap: 2,
                 mb: 3,
+                maxHeight: 560,
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: 'divider',
               }}
             >
-              {results.map((result) => (
-                <Card
-                  key={result.result_id}
-                  elevation={0}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 2,
-                    transition: 'all 0.2s ease-out',
-                    cursor: 'pointer',
-                    '&:hover': {
-                      borderColor: 'primary.main',
-                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.15)}`,
-                      transform: 'translateY(-2px)',
-                    },
-                  }}
-                  onClick={() => handleView(result)}
-                >
-                  <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-                    {/* Header */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                          {result.use_chapters && (
-                            <BookIcon 
-                              fontSize="small" 
-                              sx={{ 
-                                color: 'primary.main',
-                                flexShrink: 0,
-                              }} 
-                            />
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>文件名 / 章节</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="center">
+                      修改
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">
+                      原文长度
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="right">
+                      精校长度
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="center">
+                      模型
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="center">
+                      完成时间
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600 }} align="center">
+                      操作
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {results.map((result) => (
+                    <TableRow
+                      key={result.result_id}
+                      hover
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => handleView(result)}
+                    >
+                      <TableCell>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                            {result.use_chapters && (
+                              <BookIcon
+                                fontSize="small"
+                                sx={{
+                                  color: 'primary.main',
+                                  flexShrink: 0,
+                                }}
+                              />
+                            )}
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontWeight: 600,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {result.filename}
+                            </Typography>
+                          </Box>
+                          {result.use_chapters && result.chapter_count && (
+                            <Typography variant="caption" color="text.secondary">
+                              {result.chapter_count} 章
+                            </Typography>
                           )}
-                          <Typography 
-                            variant="subtitle2" 
-                            sx={{ 
-                              fontWeight: 600,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {result.filename}
-                          </Typography>
                         </Box>
-                        {result.use_chapters && result.chapter_count && (
-                          <Chip
-                            label={`${result.chapter_count} 章`}
-                            size="small"
-                            sx={{
-                              height: 20,
-                              fontSize: '0.7rem',
-                              bgcolor: alpha(theme.palette.primary.main, 0.1),
-                              color: 'primary.main',
-                              fontWeight: 500,
-                            }}
-                          />
-                        )}
-                      </Box>
-                      <Chip
-                        icon={result.has_changes ? <CheckCircle sx={{ fontSize: 14 }} /> : <Cancel sx={{ fontSize: 14 }} />}
-                        label={result.has_changes ? '有修改' : '无修改'}
-                        size="small"
-                        color={result.has_changes ? 'success' : 'default'}
-                        sx={{
-                          height: 24,
-                          fontSize: '0.75rem',
-                          fontWeight: 500,
-                          flexShrink: 0,
-                        }}
-                      />
-                    </Box>
-
-                    {/* Info */}
-                    <Stack spacing={1.5} sx={{ mb: 2 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="caption" color="text.secondary">
-                          原文长度
-                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          icon={
+                            result.has_changes ? (
+                              <CheckCircle sx={{ fontSize: 14 }} />
+                            ) : (
+                              <Cancel sx={{ fontSize: 14 }} />
+                            )
+                          }
+                          label={result.has_changes ? '有修改' : '无修改'}
+                          size="small"
+                          color={result.has_changes ? 'success' : 'default'}
+                          sx={{
+                            height: 24,
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {formatFileSize(result.original_length)}
                         </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="caption" color="text.secondary">
-                          精校长度
-                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {formatFileSize(result.corrected_length)}
                         </Typography>
-                      </Box>
-                      {(result.provider || result.model_name) && (
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Typography variant="caption" color="text.secondary">
-                            模型
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8125rem' }} noWrap title={[result.provider, result.model_name].filter(Boolean).join(' / ')}>
-                            {[result.provider, result.model_name].filter(Boolean).join(' · ') || '—'}
-                          </Typography>
-                        </Box>
-                      )}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="caption" color="text.secondary">
-                          完成时间
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography
+                          variant="body2"
+                          noWrap
+                          title={[result.provider, result.model_name].filter(Boolean).join(' / ')}
+                          sx={{ fontSize: '0.8125rem' }}
+                        >
+                          {[result.provider, result.model_name].filter(Boolean).join(' · ') || '—'}
                         </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '0.8125rem' }}>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>
                           {formatDate(result.completed_at)}
                         </Typography>
-                      </Box>
-                    </Stack>
-
-                    {/* Actions */}
-                    <Box 
-                      sx={{ 
-                        display: 'flex', 
-                        gap: 1,
-                        pt: 1.5,
-                        borderTop: '1px solid',
-                        borderColor: 'divider',
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Tooltip title="查看详情">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleView(result)}
-                          sx={{
-                            flex: 1,
-                            bgcolor: 'action.hover',
-                            '&:hover': {
-                              bgcolor: 'primary.main',
-                              color: 'white',
-                            },
-                            transition: 'all 0.2s ease-out',
-                          }}
-                        >
-                          <ViewIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="下载">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            const url = correctionService.getResultDownloadUrl(result.result_id)
-                            window.open(url, '_blank', 'noopener,noreferrer')
-                          }}
-                          sx={{
-                            flex: 1,
-                            bgcolor: 'action.hover',
-                            '&:hover': {
-                              bgcolor: 'primary.main',
-                              color: 'white',
-                            },
-                            transition: 'all 0.2s ease-out',
-                          }}
-                        >
-                          <DownloadIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="删除">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleDelete(result)}
-                          sx={{
-                            flex: 1,
-                            bgcolor: 'action.hover',
-                            '&:hover': {
-                              bgcolor: 'error.main',
-                              color: 'white',
-                            },
-                            transition: 'all 0.2s ease-out',
-                          }}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  </CardContent>
-                </Card>
-              ))}
-            </Box>
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
+                          <Tooltip title="查看详情">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleView(result)}
+                              sx={{
+                                bgcolor: 'action.hover',
+                                '&:hover': {
+                                  bgcolor: 'primary.main',
+                                  color: 'white',
+                                },
+                              }}
+                            >
+                              <ViewIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="下载">
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                const url = correctionService.getResultDownloadUrl(result.result_id)
+                                window.open(url, '_blank', 'noopener,noreferrer')
+                              }}
+                              sx={{
+                                bgcolor: 'action.hover',
+                                '&:hover': {
+                                  bgcolor: 'primary.main',
+                                  color: 'white',
+                                },
+                              }}
+                            >
+                              <DownloadIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="删除">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(result)}
+                              sx={{
+                                bgcolor: 'action.hover',
+                                '&:hover': {
+                                  bgcolor: 'error.main',
+                                  color: 'white',
+                                },
+                              }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
 
             {/* Pagination */}
             {totalPages > 1 && (
