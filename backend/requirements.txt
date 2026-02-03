@@ -7,5 +7,6 @@ httpx==0.25.0
 python-dotenv==1.0.0
 diff-match-patch==20230430
 python-multipart==0.0.6
-# Optional: pycorrector for Ollama pre-correction (only when Ollama + pre-correction enabled)
+# Optional: pycorrector + torch for Ollama pre-correction (start script will install these)
 pycorrector>=1.0.0
+torch>=2.0.0

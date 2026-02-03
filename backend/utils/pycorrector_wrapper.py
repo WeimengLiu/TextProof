@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 # 懒加载：按 model 类型缓存实例，避免在非 Ollama 路径导入
 _correctors = {}
+_warned_missing = False  # 仅首次打印缺失依赖提示，避免刷屏
 
 
 def _get_corrector(model: Optional[str] = None):
@@ -41,7 +42,13 @@ def _get_corrector(model: Optional[str] = None):
                 logger.warning("[pycorrector] GptCorrector 加载失败，回退 Kenlm: %s", e)
                 return _get_corrector("kenlm")
     except ImportError as e:
-        logger.warning("[pycorrector] 未安装 pycorrector 或依赖缺失: %s", e)
+        global _warned_missing
+        if not _warned_missing:
+            _warned_missing = True
+            logger.warning(
+                "[pycorrector] 未安装或依赖缺失: %s。若需使用 Ollama 预纠错，请安装: pip install torch",
+                e,
+            )
         return None
     return None
 
