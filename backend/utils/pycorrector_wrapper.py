@@ -71,11 +71,34 @@ def correct_sentence_sync(sentence: str, model: Optional[str] = None) -> str:
         # Kenlm/Corrector: result = correct(text) -> dict with 'target','source','errors'
         # MacBertCorrector/GptCorrector: correct() 可能返回 dict 或 (text, details)
         result = corrector.correct(sentence)
+
+        # 统一解析结果，得到最终文本
+        corrected = sentence
         if isinstance(result, dict):
-            return result.get("target", result.get("source", sentence))
-        if isinstance(result, (list, tuple)) and len(result) >= 1:
-            return result[0] if isinstance(result[0], str) else sentence
-        return sentence
+            corrected = result.get("target", result.get("source", sentence))
+        elif isinstance(result, (list, tuple)) and len(result) >= 1:
+            corrected = result[0] if isinstance(result[0], str) else sentence
+
+        # 打印前后对比日志（截断，避免长文本刷屏）
+        try:
+            def _preview(text: str, max_len: int = 80) -> str:
+                t = (text or "").replace("\n", "\\n")
+                return (t[:max_len] + "…") if len(t) > max_len else t
+
+            if corrected != sentence:
+                logger.info(
+                    "[pycorrector] model=%s 前: %s | 后: %s",
+                    m,
+                    _preview(sentence),
+                    _preview(corrected),
+                )
+            else:
+                logger.info("[pycorrector] model=%s 无变更", m)
+        except Exception:
+            # 日志失败不影响主流程
+            pass
+
+        return corrected
     except Exception as e:
         err_msg = str(e).lower()
         global _warned_kenlm
