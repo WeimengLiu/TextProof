@@ -9,6 +9,7 @@ from models.base import BaseModelAdapter
 from models.exceptions import ConnectionError as ModelConnectionError, ServiceUnavailableError
 from utils.text_splitter import TextSplitter
 from utils.prompt_manager import prompt_manager
+from utils.pycorrector_wrapper import correct_sentence as pycorrector_correct_sentence
 import config
 
 # 添加backend目录到路径
@@ -62,7 +63,7 @@ class CorrectionService:
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap
         )
-        self.prompt = prompt_manager.get_prompt()
+        self.prompt = prompt_manager.get_prompt(provider=self.provider)
     
     def _split_by_sentences(self, text: str, max_length: Optional[int] = None) -> tuple:
         """
@@ -185,10 +186,9 @@ class CorrectionService:
         line_endings = []  # 记录每个句子后面是否有换行符
         
         for line_idx, line in enumerate(lines):
-            line = line.rstrip()  # 只去掉右侧空白，保留左侧缩进
-            
+            line = line.rstrip()  # 去行尾空白以减少 token，保留左侧缩进
             if not line.strip():
-                # 空行：保留为单独一句
+                # 空行：作为单独一句（空字符串）
                 sentences.append('')
                 line_endings.append('\n' if line_idx < len(lines) - 1 else '')
                 continue
@@ -267,8 +267,12 @@ class CorrectionService:
                 logger.debug("[CorrectionService] Sentence %d preview: %s...", i+1, sentence[:50])
                 
                 try:
+                    # 若开启预纠错，先经 pycorrector 一轮再送 Ollama
+                    input_for_ollama = sentence
+                    if getattr(config.settings, "ollama_use_pycorrector", True):
+                        input_for_ollama = await pycorrector_correct_sentence(sentence)
                     corrected_sentence = await self.adapter.correct_text_with_retry(
-                        sentence,
+                        input_for_ollama,
                         self.prompt,
                         max_retries=config.settings.max_retries,
                         retry_delay=config.settings.retry_delay

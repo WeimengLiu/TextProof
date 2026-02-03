@@ -140,7 +140,7 @@ export const correctionService = {
   },
 
   /**
-   * 获取当前使用的Prompt
+   * 获取当前使用的 Prompt（云端 + Ollama 两套）
    * @param {boolean} reload - 是否重新从文件加载（默认false）
    */
   async getPrompt(reload = false) {
@@ -151,18 +151,28 @@ export const correctionService = {
       return response.data
     } catch (error) {
       console.error('获取Prompt失败:', error)
-      return { prompt: '', is_custom: false, prompt_file: null }
+      return {
+        prompt: '',
+        ollama_prompt: '',
+        is_custom: false,
+        prompt_file: null,
+        ollama_is_custom: false,
+        ollama_prompt_file: null
+      }
     }
   },
 
   /**
-   * 更新Prompt
-   * @param {string} prompt - 新的Prompt文本
+   * 更新 Prompt
+   * @param {string} prompt - 新的 Prompt 文本
    * @param {boolean} persist - 是否持久化保存
+   * @param {string} [provider] - 'ollama' 表示更新本地模型 Prompt，不传则更新云端 Prompt
    */
-  async updatePrompt(prompt, persist = false) {
+  async updatePrompt(prompt, persist = false, provider = null) {
     try {
-      const response = await api.post('/api/prompt', { prompt, persist })
+      const body = { prompt, persist }
+      if (provider) body.provider = provider
+      const response = await api.post('/api/prompt', body)
       return response.data
     } catch (error) {
       if (error.response) {

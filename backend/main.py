@@ -455,27 +455,34 @@ async def get_models(provider: Optional[str] = None):
 @app.get("/api/prompt")
 async def get_prompt(reload: bool = Query(False)):
     """
-    获取当前使用的Prompt
-    
-    参数:
-    - reload: 是否重新从文件加载（默认false，使用缓存）
+    获取当前使用的 Prompt（云端与 Ollama 两套）。
+    参数: reload 是否重新从文件加载（默认 false，使用缓存）
     """
+    import os
     from utils.prompt_manager import prompt_manager
+    prompt = prompt_manager.get_prompt(provider=None, reload=reload)
+    ollama_prompt = prompt_manager.get_prompt(provider="ollama")
+    ollama_prompt_file = config.settings.ollama_prompt_file
+    if not ollama_prompt_file:
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        default_path = os.path.join(backend_dir, "prompts", "ollama_custom_prompt.txt")
+        if os.path.exists(default_path):
+            ollama_prompt_file = "./prompts/ollama_custom_prompt.txt"
     return {
-        "prompt": prompt_manager.get_prompt(reload=reload),
+        "prompt": prompt,
+        "ollama_prompt": ollama_prompt,
         "is_custom": config.settings.prompt_file is not None,
         "prompt_file": config.settings.prompt_file,
+        "ollama_is_custom": bool(ollama_prompt_file),
+        "ollama_prompt_file": ollama_prompt_file,
     }
 
 
 @app.post("/api/prompt")
 async def update_prompt(request: Dict[str, Any]):
     """
-    更新Prompt
-    
-    请求体:
-    - prompt: 新的Prompt文本
-    - persist: 是否持久化保存（默认false）
+    更新 Prompt。
+    请求体: prompt, persist（默认 false）, provider（可选，'ollama' 表示更新 Ollama 专用）
     """
     from utils.prompt_manager import prompt_manager
     import os
@@ -485,74 +492,67 @@ async def update_prompt(request: Dict[str, Any]):
     
     prompt_text = request["prompt"]
     persist = request.get("persist", False)
+    provider = request.get("provider")
+    is_ollama = provider and str(provider).strip().lower() == "ollama"
     
-    # 更新Prompt
-    prompt_manager.set_prompt(prompt_text)
+    prompt_manager.set_prompt(prompt_text, provider=provider)
     
     message = "Prompt已更新并立即生效"
     prompt_file_path = None
+    ollama_prompt_file_path = None
     
     if persist:
         try:
-            # 保存到默认文件
-            saved_path = prompt_manager.save_prompt_to_default_file()
-            prompt_file_path = saved_path
+            saved_path = prompt_manager.save_prompt_to_default_file(provider=provider)
+            if is_ollama:
+                ollama_prompt_file_path = saved_path
+            else:
+                prompt_file_path = saved_path
             
-            # 更新.env文件中的PROMPT_FILE配置
             backend_dir = os.path.dirname(os.path.abspath(__file__))
             env_path = os.path.join(backend_dir, ".env")
+            env_key = "OLLAMA_PROMPT_FILE" if is_ollama else "PROMPT_FILE"
+            relative_path = "./prompts/ollama_custom_prompt.txt" if is_ollama else "./prompts/custom_prompt.txt"
             
             if os.path.exists(env_path):
-                # 读取现有.env文件
                 with open(env_path, "r", encoding="utf-8") as f:
                     env_lines = f.readlines()
-                
-                # 更新或添加PROMPT_FILE配置
                 new_lines = []
-                prompt_file_updated = False
-                relative_path = "./prompts/custom_prompt.txt"
-                
+                key_updated = False
                 for line in env_lines:
                     stripped = line.strip()
-                    if stripped.startswith("PROMPT_FILE="):
-                        new_lines.append(f"PROMPT_FILE={relative_path}\n")
-                        prompt_file_updated = True
+                    if stripped.startswith(env_key + "="):
+                        new_lines.append(f"{env_key}={relative_path}\n")
+                        key_updated = True
                     else:
                         new_lines.append(line)
-                
-                # 如果没有找到PROMPT_FILE，添加到Prompt配置区域
-                if not prompt_file_updated:
-                    # 查找Prompt配置区域或文件末尾
+                if not key_updated:
                     added = False
                     for i, line in enumerate(new_lines):
                         if "# Prompt配置" in line or "# Prompt" in line:
-                            # 在Prompt配置区域添加
                             j = i + 1
                             while j < len(new_lines) and new_lines[j].strip().startswith("#"):
                                 j += 1
-                            new_lines.insert(j, f"PROMPT_FILE={relative_path}\n")
+                            new_lines.insert(j, f"{env_key}={relative_path}\n")
                             added = True
                             break
-                    
                     if not added:
-                        # 添加到文件末尾
-                        new_lines.append(f"\n# Prompt配置\nPROMPT_FILE={relative_path}\n")
-                
-                # 写入文件
+                        new_lines.append(f"\n# Prompt配置\n{env_key}={relative_path}\n")
                 with open(env_path, "w", encoding="utf-8") as f:
                     f.writelines(new_lines)
-            
-            message = f"Prompt已更新并立即生效，已保存到文件并更新.env配置（重启后也会生效）"
+            message = "Prompt已更新并立即生效，已保存到文件并更新.env配置（重启后也会生效）"
         except Exception as e:
-            message = f"Prompt已更新并立即生效，但保存文件失败: {str(e)}"
+            message = "Prompt已更新并立即生效，但保存文件失败: %s" % str(e)
     else:
         message = "Prompt已更新并立即生效（重启后恢复为配置文件中的Prompt）"
     
     return {
         "message": message,
-        "prompt": prompt_manager.get_prompt(),
+        "prompt": prompt_manager.get_prompt(provider=None),
+        "ollama_prompt": prompt_manager.get_prompt(provider="ollama"),
         "persisted": persist,
         "prompt_file": prompt_file_path,
+        "ollama_prompt_file": ollama_prompt_file_path,
     }
 
 
@@ -564,6 +564,8 @@ async def get_config():
         "chunk_overlap": config.settings.chunk_overlap,
         "ollama_chunk_size": config.settings.ollama_chunk_size,
         "ollama_chunk_overlap": config.settings.ollama_chunk_overlap,
+        "ollama_use_pycorrector": getattr(config.settings, "ollama_use_pycorrector", True),
+        "ollama_pycorrector_model": getattr(config.settings, "ollama_pycorrector_model", "kenlm"),
         "fast_provider_max_chars": getattr(config.settings, "fast_provider_max_chars", 10000),
         "max_retries": config.settings.max_retries,
         "retry_delay": config.settings.retry_delay,
@@ -655,6 +657,16 @@ async def update_config(request: Dict[str, Any]):
     if "ollama_models" in request:
         update_data["ollama_models"] = request["ollama_models"]
     
+    if "ollama_use_pycorrector" in request:
+        update_data["ollama_use_pycorrector"] = bool(request["ollama_use_pycorrector"])
+    
+    if "ollama_pycorrector_model" in request:
+        raw = request["ollama_pycorrector_model"]
+        if raw in ("kenlm", "macbert", "gpt"):
+            update_data["ollama_pycorrector_model"] = raw
+        else:
+            update_data["ollama_pycorrector_model"] = "kenlm"
+    
     if not update_data:
         raise HTTPException(status_code=400, detail="没有提供要更新的配置项")
     
@@ -689,6 +701,8 @@ async def update_config(request: Dict[str, Any]):
                 "chunk_overlap": config.settings.chunk_overlap,
                 "ollama_chunk_size": config.settings.ollama_chunk_size,
                 "ollama_chunk_overlap": config.settings.ollama_chunk_overlap,
+                "ollama_use_pycorrector": getattr(config.settings, "ollama_use_pycorrector", True),
+                "ollama_pycorrector_model": getattr(config.settings, "ollama_pycorrector_model", "kenlm"),
                 "fast_provider_max_chars": getattr(config.settings, "fast_provider_max_chars", 10000),
                 "max_retries": config.settings.max_retries,
                 "retry_delay": config.settings.retry_delay,

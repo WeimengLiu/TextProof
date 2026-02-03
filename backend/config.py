@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     ollama_chunk_size: int = 800  # 32B模型+16GB显存建议800-1000字符
     ollama_chunk_overlap: int = 100  # 建议为chunk_size的10-15%
     
+    # Ollama 预纠错（pycorrector 第一轮 + Ollama 第二轮，仅对 Ollama 生效）
+    ollama_use_pycorrector: bool = True  # 是否先经 pycorrector 一轮纠错再送 Ollama
+    ollama_pycorrector_model: str = "kenlm"  # kenlm(轻量) / macbert / gpt
+    
     # 大模型（OpenAI/DeepSeek等）整段直发阈值（字符数）
     # 单段文本长度 <= 该值时，不再切 chunk，直接整段发送
     fast_provider_max_chars: int = 10000
@@ -44,7 +48,8 @@ class Settings(BaseSettings):
     retry_delay: float = 1.0
     
     # Prompt配置
-    prompt_file: Optional[str] = None  # 自定义Prompt文件路径
+    prompt_file: Optional[str] = None  # 自定义Prompt文件路径（云端模型 OpenAI/DeepSeek）
+    ollama_prompt_file: Optional[str] = None  # Ollama 专用 Prompt 文件路径，不设置则使用与云端相同
     
     def _parse_models(self, model_str: str) -> List[str]:
         """解析模型列表字符串"""
@@ -101,6 +106,8 @@ class Settings(BaseSettings):
             "CHUNK_OVERLAP": str(self.chunk_overlap),
             "OLLAMA_CHUNK_SIZE": str(self.ollama_chunk_size),
             "OLLAMA_CHUNK_OVERLAP": str(self.ollama_chunk_overlap),
+            "OLLAMA_USE_PYCORRECTOR": str(self.ollama_use_pycorrector).lower(),
+            "OLLAMA_PYCORRECTOR_MODEL": self.ollama_pycorrector_model,
             "FAST_PROVIDER_MAX_CHARS": str(self.fast_provider_max_chars),
             "MAX_RETRIES": str(self.max_retries),
             "RETRY_DELAY": str(self.retry_delay),

@@ -596,11 +596,14 @@ function App() {
           </Box>
         </Drawer>
 
-        {/* 右侧内容区域 */}
+        {/* 右侧内容区域：flex 约束高度，避免设置页溢出产生滚动条 */}
         <Box
           component="main"
           sx={{
             flexGrow: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
             mt: { xs: '64px', sm: '72px' },
             bgcolor: 'background.default',
           }}
@@ -610,6 +613,11 @@ function App() {
             sx={{ 
               px: { xs: 2, sm: 3 },
               py: { xs: 2, sm: 3 },
+              flex: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
             }}
           >
             {/* Tab栏 - 常驻显示 */}
@@ -716,11 +724,14 @@ function App() {
               </Box>
             </Box>
 
+            {/* 页面内容区：占满剩余高度；设置页内部不溢出，其他页可在此区域内滚动 */}
+            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
             {/* 页面标题区域 */}
             {mainTab !== TAB_TYPES.COMPARISON && (
               <Box
                 sx={{
                   mb: 3,
+                  flexShrink: 0,
                 }}
               >
                 <Typography 
@@ -900,6 +911,7 @@ function App() {
                 }}
               />
             )}
+            </Box>
           </Container>
         </Box>
       </Box>

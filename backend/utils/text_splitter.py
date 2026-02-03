@@ -52,7 +52,7 @@ class TextSplitter:
             if len(para) > self.chunk_size:
                 # 先保存当前chunk
                 if current_chunk:
-                    chunks.append(current_chunk.strip())
+                    chunks.append(current_chunk.strip())  # 去首尾空白以减少 token
                     current_chunk = ""
                 
                 # 分割长段落
@@ -67,7 +67,7 @@ class TextSplitter:
                 else:
                     # 保存当前chunk，开始新chunk
                     if current_chunk:
-                        chunks.append(current_chunk.strip())
+                        chunks.append(current_chunk.strip())  # 去首尾空白以减少 token
                     
                     # 如果有overlap，从上一chunk末尾取部分内容
                     if chunks and self.chunk_overlap > 0:
@@ -76,7 +76,7 @@ class TextSplitter:
                     else:
                         current_chunk = para
         
-        # 添加最后一个chunk
+        # 添加最后一个chunk（去首尾空白以减少 token）
         if current_chunk:
             chunks.append(current_chunk.strip())
         
@@ -89,7 +89,7 @@ class TextSplitter:
         
         current_chunk = ""
         for i, sentence in enumerate(sentences):
-            sentence = sentence.strip()
+            sentence = sentence.strip()  # 去首尾空白以减少 token
             if not sentence:
                 continue
             

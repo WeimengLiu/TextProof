@@ -52,80 +52,114 @@ class PromptManager:
         try:
             import config as config_module
             env_prompt_file = getattr(config_module.settings, 'prompt_file', None) if hasattr(config_module, 'settings') else None
-        except:
+            env_ollama_prompt_file = getattr(config_module.settings, 'ollama_prompt_file', None) if hasattr(config_module, 'settings') else None
+        except Exception:
             env_prompt_file = None
+            env_ollama_prompt_file = None
+        
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
         raw_path = prompt_file or env_prompt_file
-        # 解析路径：如果是相对路径，相对于 backend 目录
         if raw_path:
             if os.path.isabs(raw_path):
                 self.prompt_file_path = raw_path
             else:
-                # 获取 backend 目录（utils 目录的父目录）
-                backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                 self.prompt_file_path = os.path.join(backend_dir, raw_path.lstrip('./'))
         else:
             self.prompt_file_path = None
         
+        raw_ollama_path = env_ollama_prompt_file
+        if raw_ollama_path:
+            if os.path.isabs(raw_ollama_path):
+                self.ollama_prompt_file_path = raw_ollama_path
+            else:
+                self.ollama_prompt_file_path = os.path.join(backend_dir, raw_ollama_path.lstrip('./'))
+        else:
+            self.ollama_prompt_file_path = None
+        # 默认 Ollama 文件路径（保存时写入此处；未配置 OLLAMA_PROMPT_FILE 时也从此加载，避免刷新被还原）
+        self.ollama_default_file_path = os.path.join(backend_dir, "prompts", "ollama_custom_prompt.txt")
+        
         self.prompt = self.DEFAULT_PROMPT
+        self.ollama_prompt = self.DEFAULT_PROMPT
         self._load_prompt_from_file()
     
     def _load_prompt_from_file(self) -> None:
-        """从文件加载prompt（如果文件存在）"""
+        """从文件加载云端与 Ollama 两套 prompt。先加载云端，再加载 Ollama（无独立文件则与云端相同）。"""
         if self.prompt_file_path and os.path.exists(self.prompt_file_path):
             try:
                 with open(self.prompt_file_path, "r", encoding="utf-8") as f:
                     self.prompt = f.read().strip()
             except Exception as e:
-                print(f"警告: 无法读取Prompt文件 {self.prompt_file_path}: {e}，使用默认Prompt")
+                print("警告: 无法读取Prompt文件 %s: %s，使用默认Prompt" % (self.prompt_file_path, e))
                 self.prompt = self.DEFAULT_PROMPT
         else:
             if self.prompt_file_path:
-                print(f"提示: Prompt文件不存在 {self.prompt_file_path}，使用默认Prompt")
+                print("提示: Prompt文件不存在 %s，使用默认Prompt" % self.prompt_file_path)
             self.prompt = self.DEFAULT_PROMPT
+        
+        ollama_path = self.ollama_prompt_file_path or self.ollama_default_file_path
+        if ollama_path and os.path.exists(ollama_path):
+            try:
+                with open(ollama_path, "r", encoding="utf-8") as f:
+                    self.ollama_prompt = f.read().strip()
+            except Exception as e:
+                print("警告: 无法读取 Ollama Prompt 文件 %s: %s，使用云端 Prompt" % (ollama_path, e))
+                self.ollama_prompt = self.prompt
+        else:
+            if self.ollama_prompt_file_path:
+                print("提示: Ollama Prompt 文件不存在 %s，使用云端 Prompt" % self.ollama_prompt_file_path)
+            self.ollama_prompt = self.prompt
     
-    def get_prompt(self, reload: bool = False) -> str:
+    def get_prompt(self, provider: Optional[str] = None, reload: bool = False) -> str:
         """
-        获取当前使用的prompt
+        获取当前使用的 prompt。
         
         Args:
-            reload: 是否重新从文件加载（默认False，使用缓存）
+            provider: 模型提供商，'ollama' 返回 Ollama 专用 prompt，否则返回云端 prompt。
+            reload: 是否重新从文件加载（默认 False，使用缓存）
         
         Returns:
-            prompt文本
+            prompt 文本
         """
         if reload:
             self._load_prompt_from_file()
+        if provider and str(provider).lower() == "ollama":
+            return self.ollama_prompt
         return self.prompt
     
-    def set_prompt(self, prompt: str):
-        """设置新的prompt"""
-        self.prompt = prompt
+    def set_prompt(self, prompt: str, provider: Optional[str] = None) -> None:
+        """设置新的 prompt。provider=='ollama' 时设置 Ollama 专用，否则设置云端。"""
+        if provider and str(provider).lower() == "ollama":
+            self.ollama_prompt = prompt
+        else:
+            self.prompt = prompt
     
-    def save_prompt(self, file_path: str):
-        """保存prompt到文件"""
+    def save_prompt(self, file_path: str, provider: Optional[str] = None) -> None:
+        """保存 prompt 到指定文件。provider=='ollama' 时保存 Ollama 专用内容，否则保存云端。"""
+        content = self.ollama_prompt if (provider and str(provider).lower() == "ollama") else self.prompt
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(self.prompt)
+            f.write(content)
     
-    def save_prompt_to_default_file(self) -> str:
+    def save_prompt_to_default_file(self, provider: Optional[str] = None) -> str:
         """
-        保存Prompt到默认文件（prompts/custom_prompt.txt）
+        保存 Prompt 到默认文件。
+        provider is None 时保存云端到 prompts/custom_prompt.txt；
+        provider=='ollama' 时保存 Ollama 到 prompts/ollama_custom_prompt.txt。
         
         Returns:
             保存的文件路径
         """
-        # 获取backend目录路径（utils 目录的父目录）
         backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         prompts_dir = os.path.join(backend_dir, "prompts")
-        
-        # 确保prompts目录存在
         os.makedirs(prompts_dir, exist_ok=True)
-        
-        # 保存到默认文件
-        default_file = os.path.join(prompts_dir, "custom_prompt.txt")
-        with open(default_file, "w", encoding="utf-8") as f:
-            f.write(self.prompt)
-        
+        if provider and str(provider).lower() == "ollama":
+            default_file = os.path.join(prompts_dir, "ollama_custom_prompt.txt")
+            with open(default_file, "w", encoding="utf-8") as f:
+                f.write(self.ollama_prompt)
+        else:
+            default_file = os.path.join(prompts_dir, "custom_prompt.txt")
+            with open(default_file, "w", encoding="utf-8") as f:
+                f.write(self.prompt)
         return default_file
 
 

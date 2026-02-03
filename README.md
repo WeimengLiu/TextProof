@@ -10,6 +10,7 @@
 - ✅ **整段直发**：对 OpenAI / DeepSeek 等云端模型，短文本可整段发送，减少切片合并
 - ✅ **差异对比**：可视化展示原文与精校文本的差异，忽略纯格式改动
 - ✅ **任务与结果管理**：后台任务队列 + 任务进度页 + 比对结果列表页
+- ✅ **Ollama 预纠错**：可选先经 pycorrector（Kenlm/MacBert/Gpt）一轮纠错再送 Ollama，提升本地模型效果；可在设置页开关并选择预纠错模型（默认 Kenlm）
 - ✅ **系统配置面板**：前端实时调整分段、重试、默认模型、Prompt 文件等配置
 - ✅ **一键导出**：支持导出精校后的完整文本或单章节
 
@@ -297,6 +298,8 @@ print(result["corrected"])
   - `CHUNK_OVERLAP`: 全局分段重叠大小（默认 200）
   - `OLLAMA_CHUNK_SIZE`: Ollama 专用分段大小，适配本地大模型（建议 800–1000）
   - `OLLAMA_CHUNK_OVERLAP`: Ollama 专用分段重叠
+  - `OLLAMA_USE_PYCORRECTOR`: 是否对 Ollama 启用 pycorrector 预纠错（默认 `true`）
+  - `OLLAMA_PYCORRECTOR_MODEL`: 预纠错模型，可选 `kenlm`（轻量，默认）、`macbert`、`gpt`；macbert/gpt 需额外依赖与资源
   - `FAST_PROVIDER_MAX_CHARS`: 对 OpenAI / DeepSeek 等云端模型的整段直发阈值（字符数）
 - 重试策略：
   - `MAX_RETRIES`: 最大重试次数（默认 3）
@@ -314,6 +317,14 @@ print(result["corrected"])
 ```env
 VITE_API_BASE_URL=http://localhost:8000
 ```
+
+## Ollama 预纠错（pycorrector）
+
+当使用 **Ollama** 时，可在设置页开启「Ollama 预纠错」：先经 [pycorrector](https://github.com/shibing624/pycorrector) 一轮纠错，再将结果送入 Ollama 做二次纠错，以提升本地模型效果。
+
+- **预纠错模型**：默认 `kenlm`（统计模型，CPU、轻量；首次使用会下载语言模型到 `~/.pycorrector/`）。可选 `macbert`、`gpt`，效果更好但需更多依赖与显存。
+- **依赖**：`pip install pycorrector`；若未安装或加载失败，将跳过预纠错，仅使用 Ollama 单轮纠错。
+- **配置**：前端「系统配置 → 处理配置」中「Ollama 预纠错」区块可开关并选择预纠错模型；或通过 `.env` 设置 `OLLAMA_USE_PYCORRECTOR`、`OLLAMA_PYCORRECTOR_MODEL`。
 
 ## 注意事项
 
