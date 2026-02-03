@@ -22,7 +22,7 @@ if not exist "venv" (
 REM 激活虚拟环境
 call venv\Scripts\activate.bat
 
-REM 安装依赖
+REM 安装依赖（不含 kenlm，Windows 下 kenlm 无法编译；Ollama 预纠错可改用 macbert 或关闭）
 echo 安装依赖...
 pip install -r requirements.txt
 

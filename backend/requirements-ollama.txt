@@ -1,0 +1,4 @@
+# Optional: install only on Linux/Mac when you need kenlm pre-correction.
+# Do NOT use on Windows (kenlm fails to build there). Use macbert or disable pre-correction on Windows.
+-r requirements.txt
+kenlm
