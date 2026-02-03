@@ -270,30 +270,51 @@ function ResultListPage({ onViewComparison }) {
           </Box>
         ) : (
           <Box>
-            {/* Dense table view for large result sets */}
+            {/* Dense table view for large result sets，支持滚动与自适应列 */}
             <TableContainer
               sx={{
                 mb: 3,
-                maxHeight: 560,
+                maxHeight: { xs: 420, md: 560 },
                 borderRadius: 2,
                 border: '1px solid',
                 borderColor: 'divider',
+                overflow: 'auto',
               }}
             >
-              <Table size="small" stickyHeader>
+              <Table
+                size="small"
+                stickyHeader
+                sx={{
+                  minWidth: 900,
+                  '& .MuiTableCell-head': {
+                    bgcolor: 'background.default',
+                    borderBottomColor: 'divider',
+                    fontSize: '0.8rem',
+                  },
+                }}
+              >
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ fontWeight: 600 }}>文件名 / 章节</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="center">
                       修改
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="right">
+                    <TableCell
+                      sx={{ fontWeight: 600, display: { xs: 'none', sm: 'table-cell' } }}
+                      align="right"
+                    >
                       原文长度
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="right">
+                    <TableCell
+                      sx={{ fontWeight: 600, display: { xs: 'none', sm: 'table-cell' } }}
+                      align="right"
+                    >
                       精校长度
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="center">
+                    <TableCell
+                      sx={{ fontWeight: 600, display: { xs: 'none', md: 'table-cell' } }}
+                      align="center"
+                    >
                       模型
                     </TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="center">
@@ -309,7 +330,15 @@ function ResultListPage({ onViewComparison }) {
                     <TableRow
                       key={result.result_id}
                       hover
-                      sx={{ cursor: 'pointer' }}
+                      sx={{
+                        cursor: 'pointer',
+                        '&:nth-of-type(odd)': {
+                          bgcolor: 'action.hover',
+                        },
+                        '&:last-child td, &:last-child th': {
+                          borderBottom: 0,
+                        },
+                      }}
                       onClick={() => handleView(result)}
                     >
                       <TableCell>
@@ -362,17 +391,26 @@ function ResultListPage({ onViewComparison }) {
                           }}
                         />
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell
+                        align="right"
+                        sx={{ display: { xs: 'none', sm: 'table-cell' } }}
+                      >
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {formatFileSize(result.original_length)}
                         </Typography>
                       </TableCell>
-                      <TableCell align="right">
+                      <TableCell
+                        align="right"
+                        sx={{ display: { xs: 'none', sm: 'table-cell' } }}
+                      >
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>
                           {formatFileSize(result.corrected_length)}
                         </Typography>
                       </TableCell>
-                      <TableCell align="center">
+                      <TableCell
+                        align="center"
+                        sx={{ display: { xs: 'none', md: 'table-cell' } }}
+                      >
                         <Typography
                           variant="body2"
                           noWrap
