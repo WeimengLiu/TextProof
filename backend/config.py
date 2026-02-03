@@ -171,6 +171,7 @@ class Settings(BaseSettings):
     
     model_config = ConfigDict(
         env_file=".env",
+        env_file_encoding="utf-8",  # Windows 下避免 .env 被按 gbk 解码导致 UnicodeDecodeError
         case_sensitive=False,
         protected_namespaces=()  # 解决 model_name 字段冲突警告
     )

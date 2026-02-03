@@ -3,6 +3,8 @@ chcp 65001 >nul
 setlocal
 
 REM 启动后端服务脚本（开发模式 - 热重载）（Windows）
+REM 使用 UTF-8，避免 .env / 中文路径等被 gbk 解码报错
+set PYTHONUTF8=1
 
 cd /d "%~dp0backend"
 
